@@ -45,6 +45,15 @@ const handleSubmit = async (e) => {
     alert("❌ 保存に失敗しました。後ほど確認してください。");
   }
 };
+setFormData({
+  name: "",
+  department: "役員",
+  purpose: "",
+  guest: "",
+  room: "1階食堂",
+  date: "",
+  time: ""
+});
 
   const handleDelete = async (id) => {
     await deleteDoc(doc(db, "reservations", id));
