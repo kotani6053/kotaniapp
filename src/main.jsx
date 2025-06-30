@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { db } from "./firebase";
-import { collection, addDoc, getDocs, deleteDoc, doc, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, onSnapshot } from "firebase/firestore";
 
 const App = () => {
   const [view, setView] = useState("form");
@@ -16,6 +16,7 @@ const App = () => {
     time: ""
   });
 
+  // Firestoreからリアルタイム取得
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "reservations"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -24,41 +25,44 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-const handleChange = (e) => {
-  const { name, value } = e.target;
-  setFormData((prev) => ({
-    ...prev,
-    [name]: value
-  }));
-};
+  // フォーム入力変更時にformDataを更新
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
+  // フォーム送信（Firestoreに保存）
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, "reservations"), formData);
+      alert("✅ 予約が完了しました。初期画面に戻ります。");
+      setView("form");
+      // 送信後にフォームをリセット
+      setFormData({
+        name: "",
+        department: "役員",
+        purpose: "",
+        guest: "",
+        room: "1階食堂",
+        date: "",
+        time: ""
+      });
+    } catch (error) {
+      console.error("Firestore書き込み失敗:", error);
+      alert("❌ 保存に失敗しました。後ほど確認してください。");
+    }
+  };
 
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  try {
-    await addDoc(collection(db, "reservations"), formData);
-    alert("✅ 予約が完了しました。初期画面に戻ります。");
-    setView("form");
-  } catch (error) {
-    console.error("Firestore書き込み失敗:", error);
-    alert("❌ 保存に失敗しました。後ほど確認してください。");
-  }
-};
-setFormData({
-  name: "",
-  department: "役員",
-  purpose: "",
-  guest: "",
-  room: "1階食堂",
-  date: "",
-  time: ""
-});
-
+  // 削除ボタン押下時にFirestoreから削除
   const handleDelete = async (id) => {
     await deleteDoc(doc(db, "reservations", id));
   };
 
+  // 予約を日付・部屋ごとにグループ化して返す
   const groupedReservations = () => {
     const sorted = [...reservations].sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
@@ -138,4 +142,3 @@ setFormData({
 const container = document.getElementById("root");
 const root = createRoot(container);
 root.render(<App />);
-
