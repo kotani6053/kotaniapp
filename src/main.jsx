@@ -28,19 +28,17 @@ const App = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const duplicate = reservations.find(
-      (r) => r.date === formData.date && r.time === formData.time && r.room === formData.room
-    );
-    if (duplicate) {
-      alert("この時間帯はすでに予約されています。");
-      return;
-    }
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  try {
     await addDoc(collection(db, "reservations"), formData);
-    alert("予約が完了しました。初期画面に戻ります。");
+    alert("✅ 予約が完了しました。初期画面に戻ります。");
     setView("form");
-  };
+  } catch (error) {
+    console.error("Firestore書き込み失敗:", error);
+    alert("❌ 保存に失敗しました。後ほど確認してください。");
+  }
+};
 
   const handleDelete = async (id) => {
     await deleteDoc(doc(db, "reservations", id));
