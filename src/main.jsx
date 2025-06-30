@@ -25,8 +25,16 @@ const App = () => {
   }, []);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+setFormData({
+  name: "",
+  department: "役員",
+  purpose: "",
+  guest: "",
+  room: "1階食堂",
+  date: "",
+  time: ""
+});
+
 
 const handleSubmit = async (e) => {
   e.preventDefault();
