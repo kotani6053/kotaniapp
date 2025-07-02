@@ -108,44 +108,44 @@ const App = () => {
   };
 
   return (
-    <div className="p-6 font-sans text-lg">
-      <h1 className="text-4xl font-bold mb-6">KOTANI会議室予約アプリ</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className="p-10 font-sans text-xl">
+      <h1 className="text-5xl font-bold mb-10">📖 KOTANI会議室予約アプリ</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
         {/* フォーム */}
         <div>
-          <h2 className="text-2xl font-semibold mb-4">📌 予約入力</h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4">
-            <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="text-lg p-2 border rounded" />
-            <select name="department" value={formData.department} onChange={handleChange} className="text-lg p-2 border rounded">
+          <h2 className="text-3xl font-semibold mb-6">📌 予約入力</h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
+            <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
+            <select name="department" value={formData.department} onChange={handleChange} className="text-xl p-4 border rounded-xl">
               <option value="役員">役員</option>
               <option value="新門司手摺">新門司手摺</option>
               <option value="新門司セラミック">新門司セラミック</option>
               <option value="総務部">総務部</option>
               <option value="その他">その他</option>
             </select>
-            <input name="purpose" placeholder="使用目的" value={formData.purpose} onChange={handleChange} required className="text-lg p-2 border rounded" />
-            <input name="guest" placeholder="来客者名" value={formData.guest} onChange={handleChange} className="text-lg p-2 border rounded" />
-            <select name="room" value={formData.room} onChange={handleChange} className="text-lg p-2 border rounded">
+            <input name="purpose" placeholder="使用目的" value={formData.purpose} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
+            <input name="guest" placeholder="来客者名" value={formData.guest} onChange={handleChange} className="text-xl p-4 border rounded-xl" />
+            <select name="room" value={formData.room} onChange={handleChange} className="text-xl p-4 border rounded-xl">
               <option value="1階食堂">1階食堂</option>
               <option value="2階会議室①">2階会議室①</option>
               <option value="2階会議室②">2階会議室②</option>
               <option value="3階会議室">3階会議室</option>
               <option value="応接室">応接室</option>
             </select>
-            <input name="date" type="date" value={formData.date} onChange={handleChange} required className="text-lg p-2 border rounded" />
+            <input name="date" type="date" value={formData.date} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
 
-            <div className="flex gap-2">
+            <div className="flex gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-medium mb-1">開始時間</label>
-                <select name="startTime" value={formData.startTime} onChange={handleChange} className="text-lg p-2 border rounded w-full">
+                <label className="block text-lg font-medium mb-2">開始時間</label>
+                <select name="startTime" value={formData.startTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
                   {timeOptions.map(time => (
                     <option key={time} value={time}>{time}</option>
                   ))}
                 </select>
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium mb-1">終了時間</label>
-                <select name="endTime" value={formData.endTime} onChange={handleChange} className="text-lg p-2 border rounded w-full">
+                <label className="block text-lg font-medium mb-2">終了時間</label>
+                <select name="endTime" value={formData.endTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
                   {timeOptions.map(time => (
                     <option key={time} value={time}>{time}</option>
                   ))}
@@ -153,7 +153,6 @@ const App = () => {
               </div>
             </div>
 
-            {/* 🚀 強調された予約ボタン */}
             <button className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-3xl font-bold px-12 py-6 rounded-2xl shadow-2xl hover:scale-105 hover:brightness-110 transition-transform duration-200 ease-in-out">
               🚀 予約する
             </button>
@@ -162,18 +161,18 @@ const App = () => {
 
         {/* 一覧 */}
         <div>
-          <h2 className="text-2xl font-semibold mb-4">📅 予約一覧</h2>
+          <h2 className="text-3xl font-semibold mb-6">📅 予約一覧</h2>
           {Object.entries(groupedReservations()).map(([date, rooms]) => (
-            <div key={date} className="mb-6">
-              <h3 className="text-xl font-bold mb-2">📅 {date}</h3>
+            <div key={date} className="mb-8">
+              <h3 className="text-2xl font-bold mb-3">📅 {date}</h3>
               {Object.entries(rooms).map(([room, entries]) => (
-                <div key={room} className="mb-2">
-                  <h4 className="text-lg font-semibold mb-1">🏢 {room}</h4>
-                  <ul className="ml-4">
+                <div key={room} className="mb-3">
+                  <h4 className="text-xl font-semibold mb-2">🏢 {room}</h4>
+                  <ul className="ml-6">
                     {entries.map((r) => (
-                      <li key={r.id} className="mb-1">
+                      <li key={r.id} className="mb-2">
                         {r.startTime}〜{r.endTime} - {r.name}（{r.department}） / {r.purpose} {r.guest && `/ 来客: ${r.guest}`}
-                        <button onClick={() => handleDelete(r.id)} className="text-red-500 ml-4 hover:underline">削除</button>
+                        <button onClick={() => handleDelete(r.id)} className="text-red-600 ml-4 hover:underline text-lg">削除</button>
                       </li>
                     ))}
                   </ul>
