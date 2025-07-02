@@ -16,7 +16,6 @@ const App = () => {
     endTime: "09:00"
   });
 
-  // 🔁 10分刻みの時間リスト（08:30〜18:00）
   const timeOptions = [];
   for (let hour = 8; hour <= 18; hour++) {
     for (let min = 0; min < 60; min += 10) {
@@ -29,7 +28,6 @@ const App = () => {
     }
   }
 
-  // 🔁 Firestoreからリアルタイム取得
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "reservations"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -38,7 +36,6 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  // 🔁 入力変更処理
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -47,7 +44,6 @@ const App = () => {
     }));
   };
 
-  // 🔁 重複チェック
   const isOverlapping = (newRes) => {
     return reservations.some((r) =>
       r.date === newRes.date &&
@@ -59,7 +55,6 @@ const App = () => {
     );
   };
 
-  // 🔁 登録処理
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -92,12 +87,10 @@ const App = () => {
     }
   };
 
-  // 🔁 削除処理
   const handleDelete = async (id) => {
     await deleteDoc(doc(db, "reservations", id));
   };
 
-  // 🔁 グループ化表示
   const groupedReservations = () => {
     const sorted = [...reservations].sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
@@ -160,7 +153,10 @@ const App = () => {
               </div>
             </div>
 
-            <button className="bg-blue-600 text-white px-4 py-2 rounded text-xl">予約する</button>
+            {/* 🚀 強調された予約ボタン */}
+            <button className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-3xl font-bold px-12 py-6 rounded-2xl shadow-2xl hover:scale-105 hover:brightness-110 transition-transform duration-200 ease-in-out">
+              🚀 予約する
+            </button>
           </form>
         </div>
 
