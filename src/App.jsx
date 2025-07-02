@@ -16,7 +16,7 @@ const App = () => {
     endTime: "09:00"
   });
 
-  // 時間選択肢（10分刻み）
+  // 🔁 10分刻みの時間リスト（08:30〜18:00）
   const timeOptions = [];
   for (let hour = 8; hour <= 18; hour++) {
     for (let min = 0; min < 60; min += 10) {
@@ -29,7 +29,7 @@ const App = () => {
     }
   }
 
-  // Firestoreからリアルタイム取得
+  // 🔁 Firestoreからリアルタイム取得
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "reservations"), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -38,7 +38,7 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  // 入力変更
+  // 🔁 入力変更処理
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -47,12 +47,29 @@ const App = () => {
     }));
   };
 
-  // 登録
+  // 🔁 重複チェック
+  const isOverlapping = (newRes) => {
+    return reservations.some((r) =>
+      r.date === newRes.date &&
+      r.room === newRes.room &&
+      !(
+        newRes.endTime <= r.startTime ||
+        newRes.startTime >= r.endTime
+      )
+    );
+  };
+
+  // 🔁 登録処理
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (formData.startTime >= formData.endTime) {
       alert("❌ 終了時間は開始時間より後にしてください。");
+      return;
+    }
+
+    if (isOverlapping(formData)) {
+      alert("⚠️ 他の予約と時間が重複しています。");
       return;
     }
 
@@ -75,12 +92,12 @@ const App = () => {
     }
   };
 
-  // 削除
+  // 🔁 削除処理
   const handleDelete = async (id) => {
     await deleteDoc(doc(db, "reservations", id));
   };
 
-  // グループ化
+  // 🔁 グループ化表示
   const groupedReservations = () => {
     const sorted = [...reservations].sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
@@ -100,7 +117,6 @@ const App = () => {
   return (
     <div className="p-6 font-sans text-lg">
       <h1 className="text-4xl font-bold mb-6">KOTANI会議室予約アプリ</h1>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* フォーム */}
         <div>
@@ -173,3 +189,8 @@ const App = () => {
       </div>
     </div>
   );
+};
+
+const container = document.getElementById("root");
+const root = createRoot(container);
+root.render(<App />);
