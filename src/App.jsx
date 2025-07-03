@@ -153,9 +153,10 @@ const App = () => {
               </div>
             </div>
 
-            <button className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-3xl font-bold px-12 py-6 rounded-2xl shadow-2xl hover:scale-105 hover:brightness-110 transition-transform duration-200 ease-in-out">
-              🚀 予約する
-            </button>
+            <button className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-5xl font-bold px-16 py-8 rounded-2xl shadow-2xl hover:scale-105 hover:brightness-110 transition-transform duration-200 ease-in-out">
+  🚀 予約する
+</button>
+
           </form>
         </div>
 
