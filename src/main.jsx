@@ -5,6 +5,9 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot } from "firebase/firesto
 
 const App = () => {
   const [reservations, setReservations] = useState([]);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
   const [formData, setFormData] = useState({
     name: "",
     department: "役員",
@@ -40,6 +43,8 @@ const App = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    setErrorMessage("");
+    setSuccessMessage("");
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -60,18 +65,21 @@ const App = () => {
     e.preventDefault();
 
     if (formData.startTime >= formData.endTime) {
-      alert("❌ 終了時間は開始時間より後にしてください。");
+      setErrorMessage("❌ 終了時間は開始時間より後にしてください。");
+      setSuccessMessage("");
       return;
     }
 
     if (isOverlapping(formData)) {
-      alert("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
+      setErrorMessage("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
+      setSuccessMessage("");
       return;
     }
 
     try {
       await addDoc(collection(db, "reservations"), formData);
-      alert("✅ 予約が完了しました。");
+      setSuccessMessage("✅ 予約が完了しました。");
+      setErrorMessage("");
       setFormData({
         name: "",
         department: "役員",
@@ -84,7 +92,8 @@ const App = () => {
       });
     } catch (error) {
       console.error("Firestore書き込み失敗:", error);
-      alert("❌ 保存に失敗しました。後ほど確認してください。");
+      setErrorMessage("❌ 保存に失敗しました。後ほど確認してください。");
+      setSuccessMessage("");
     }
   };
 
@@ -145,6 +154,18 @@ const App = () => {
         {/* フォーム */}
         <div>
           <h2 className="text-3xl font-semibold mb-6">📌 予約入力</h2>
+
+          {successMessage && (
+            <div className="bg-green-100 text-green-700 p-4 rounded-xl text-lg font-semibold mb-4">
+              {successMessage}
+            </div>
+          )}
+          {errorMessage && (
+            <div className="bg-red-100 text-red-700 p-4 rounded-xl text-lg font-semibold mb-4">
+              {errorMessage}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
             <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
             <select name="department" value={formData.department} onChange={handleChange} className="text-xl p-4 border rounded-xl">
