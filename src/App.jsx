@@ -89,16 +89,28 @@ const App = () => {
   };
 
   const groupedReservations = () => {
-    const safeCompare = (a, b) =>
-      (a ?? "").toString().localeCompare((b ?? "").toString());
+  const safeValue = (val) => (typeof val === "string" ? val : "");
 
-    const sorted = [...reservations].sort((a, b) => {
-      const byDate = safeCompare(a.date, b.date);
-      if (byDate !== 0) return byDate;
-      const byRoom = safeCompare(a.room, b.room);
-      if (byRoom !== 0) return byRoom;
-      return safeCompare(a.startTime, b.startTime);
-    });
+  const sorted = [...reservations].sort((a, b) => {
+    const byDate = safeValue(a.date).localeCompare(safeValue(b.date));
+    if (byDate !== 0) return byDate;
+    const byRoom = safeValue(a.room).localeCompare(safeValue(b.room));
+    if (byRoom !== 0) return byRoom;
+    return safeValue(a.startTime).localeCompare(safeValue(b.startTime));
+  });
+
+  const grouped = {};
+  sorted.forEach((r) => {
+    const date = safeValue(r.date);
+    const room = safeValue(r.room);
+    if (!grouped[date]) grouped[date] = {};
+    if (!grouped[date][room]) grouped[date][room] = [];
+    grouped[date][room].push(r);
+  });
+
+  return grouped;
+};
+
 
     const grouped = {};
     sorted.forEach((r) => {
