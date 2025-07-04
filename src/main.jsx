@@ -213,15 +213,28 @@ const App = () => {
                         <div>
                           <div className="text-lg font-semibold">{r.startTime}〜{r.endTime}</div>
                           <div className="text-sm text-gray-700">
-                            {r.name}（{r.department}） / {r.purpose} {r.guest && ` / 来客: ${r.guest}`}
+                            {r.name}（{r.department}） / {r.purpose}
+                            {r.guest && (
+                              <span className="flex items-center gap-2 mt-1">
+                                来客: {r.guest}
+                                <button
+                                  onClick={() => handleDelete(r.id)}
+                                  className="text-red-600 hover:underline text-sm"
+                                >
+                                  削除
+                                </button>
+                              </span>
+                            )}
+                            {!r.guest && (
+                              <button
+                                onClick={() => handleDelete(r.id)}
+                                className="text-red-600 hover:underline text-sm ml-2"
+                              >
+                                削除
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleDelete(r.id)}
-                          className="text-red-600 hover:underline text-sm"
-                        >
-                          削除
-                        </button>
                       </div>
                     ))}
                   </div>
