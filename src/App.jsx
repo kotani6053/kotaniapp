@@ -93,9 +93,16 @@ const App = () => {
 
   const groupedReservations = () => {
     const sorted = [...reservations].sort((a, b) => {
-      if (a.date !== b.date) return a.date.localeCompare(b.date);
-      if (a.room !== b.room) return a.room.localeCompare(b.room);
-      return a.startTime.localeCompare(b.startTime);
+      const dateA = a.date || "";
+      const dateB = b.date || "";
+      const roomA = a.room || "";
+      const roomB = b.room || "";
+      const startA = a.startTime || "";
+      const startB = b.startTime || "";
+
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      if (roomA !== roomB) return roomA.localeCompare(roomB);
+      return startA.localeCompare(startB);
     });
 
     const grouped = {};
@@ -153,13 +160,9 @@ const App = () => {
               </div>
             </div>
 
-         <button className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-5xl font-extrabold px-20 py-10 rounded-3xl shadow-2xl hover:scale-110 hover:brightness-110 transition-transform duration-300 ease-in-out">
-  🚀 予約する
-</button>
-
-
-
-
+            <button className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-5xl font-extrabold px-20 py-10 rounded-3xl shadow-2xl hover:scale-110 hover:brightness-110 transition-transform duration-300 ease-in-out">
+              🚀 予約する
+            </button>
           </form>
         </div>
 
