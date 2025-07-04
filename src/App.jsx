@@ -16,6 +16,8 @@ const App = () => {
     endTime: "09:00"
   });
 
+  const today = new Date().toISOString().split("T")[0]; // 本日の日付（YYYY-MM-DD）
+
   const timeOptions = [];
   for (let hour = 8; hour <= 18; hour++) {
     for (let min = 0; min < 60; min += 10) {
@@ -47,8 +49,10 @@ const App = () => {
   const isOverlapping = (newRes) => {
     return reservations.some((r) =>
       r.date === newRes.date &&
-      r.room === newRes.room &&
-      !(newRes.endTime <= r.startTime || newRes.startTime >= r.endTime)
+      r.name === newRes.name &&
+      !(
+        newRes.endTime <= r.startTime || newRes.startTime >= r.endTime
+      )
     );
   };
 
@@ -61,7 +65,7 @@ const App = () => {
     }
 
     if (isOverlapping(formData)) {
-      alert("⚠️ 他の予約と時間が重複しています。");
+      alert("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
       return;
     }
 
@@ -88,57 +92,51 @@ const App = () => {
     await deleteDoc(doc(db, "reservations", id));
   };
 
-const groupedReservations = () => {
-  const safeString = (value) =>
-    typeof value === "string" ? value : value?.toString?.() || "";
+  const groupedReservations = () => {
+    const safeString = (value) =>
+      typeof value === "string" ? value : value?.toString?.() || "";
 
-  const filtered = reservations.filter(
-    (r) =>
-      r &&
-      typeof r === "object" &&
-      r.date &&
-      r.room &&
-      r.startTime &&
-      r.endTime &&
-      r.name &&
-      typeof r.date === "string" &&
-      typeof r.room === "string" &&
-      typeof r.startTime === "string" &&
-      typeof r.endTime === "string"
-  );
+    const filtered = reservations.filter(
+      (r) =>
+        r &&
+        typeof r === "object" &&
+        r.date &&
+        r.room &&
+        r.startTime &&
+        r.endTime &&
+        r.name &&
+        typeof r.date === "string"
+    );
 
-  const sorted = [...filtered].sort((a, b) => {
-    const dateA = safeString(a.date);
-    const dateB = safeString(b.date);
-    const roomA = safeString(a.room);
-    const roomB = safeString(b.room);
-    const timeA = safeString(a.startTime);
-    const timeB = safeString(b.startTime);
+    const sorted = [...filtered].sort((a, b) => {
+      const dateA = safeString(a.date);
+      const dateB = safeString(b.date);
+      const roomA = safeString(a.room);
+      const roomB = safeString(b.room);
+      const timeA = safeString(a.startTime);
+      const timeB = safeString(b.startTime);
 
-    const byDate = dateA.localeCompare(dateB);
-    if (byDate !== 0) return byDate;
+      const byDate = dateA.localeCompare(dateB);
+      if (byDate !== 0) return byDate;
 
-    const byRoom = roomA.localeCompare(roomB);
-    if (byRoom !== 0) return byRoom;
+      const byRoom = roomA.localeCompare(roomB);
+      if (byRoom !== 0) return byRoom;
 
-    return timeA.localeCompare(timeB);
-  });
+      return timeA.localeCompare(timeB);
+    });
 
-  const grouped = {};
-  sorted.forEach((r) => {
-    const date = safeString(r.date);
-    const room = safeString(r.room);
+    const grouped = {};
+    sorted.forEach((r) => {
+      const date = safeString(r.date);
+      const room = safeString(r.room);
 
-    if (!grouped[date]) grouped[date] = {};
-    if (!grouped[date][room]) grouped[date][room] = [];
-    grouped[date][room].push(r);
-  });
+      if (!grouped[date]) grouped[date] = {};
+      if (!grouped[date][room]) grouped[date][room] = [];
+      grouped[date][room].push(r);
+    });
 
-  return grouped;
-};
-
-
-  
+    return grouped;
+  };
 
   return (
     <div className="p-10 font-sans text-xl">
@@ -165,7 +163,16 @@ const groupedReservations = () => {
               <option value="3階会議室">3階会議室</option>
               <option value="応接室">応接室</option>
             </select>
-            <input name="date" type="date" value={formData.date} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
+
+            <input
+              name="date"
+              type="date"
+              min={today} // ← カレンダーで過去日付を選べなくする
+              value={formData.date}
+              onChange={handleChange}
+              required
+              className="text-xl p-4 border rounded-xl"
+            />
 
             <div className="flex gap-4">
               <div className="flex-1">
