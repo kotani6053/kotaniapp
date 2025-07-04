@@ -1,13 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { db } from "./firebase";
-import {
-  collection,
-  addDoc,
-  deleteDoc,
-  doc,
-  onSnapshot,
-} from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, onSnapshot } from "firebase/firestore";
 
 const App = () => {
   const [reservations, setReservations] = useState([]);
@@ -22,7 +16,7 @@ const App = () => {
     endTime: "09:00",
   });
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().split("T")[0]; // 本日（YYYY-MM-DD）
 
   const timeOptions = [];
   for (let hour = 8; hour <= 18; hour++) {
@@ -52,16 +46,26 @@ const App = () => {
     }));
   };
 
+  // 修正済み：同じ名前、同じ日で時間重なり → NG（部屋問わず）
   const isOverlapping = (newRes) => {
     return reservations.some((r) =>
-      r.name === newRes.name &&
+      r &&
+      r.name?.trim() === newRes.name?.trim() &&
       r.date === newRes.date &&
-      !(newRes.endTime <= r.startTime || newRes.startTime >= r.endTime)
+      !(
+        newRes.endTime <= r.startTime ||
+        newRes.startTime >= r.endTime
+      )
     );
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.name.trim()) {
+      alert("❌ 名前を入力してください。");
+      return;
+    }
 
     if (formData.startTime >= formData.endTime) {
       alert("❌ 終了時間は開始時間より後にしてください。");
@@ -69,7 +73,7 @@ const App = () => {
     }
 
     if (isOverlapping(formData)) {
-      alert("⚠️ 同じ名前で同じ日・同じ時間帯の予約があります（部屋が違ってもNG）");
+      alert("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
       return;
     }
 
@@ -97,19 +101,43 @@ const App = () => {
   };
 
   const groupedReservations = () => {
-    const safeString = (v) => (typeof v === "string" ? v : v?.toString?.() || "");
-    const sorted = [...reservations].sort((a, b) => {
-      const byDate = safeString(a.date).localeCompare(safeString(b.date));
+    const safeString = (value) =>
+      typeof value === "string" ? value : value?.toString?.() || "";
+
+    const filtered = reservations.filter(
+      (r) =>
+        r &&
+        typeof r === "object" &&
+        r.date &&
+        r.room &&
+        r.startTime &&
+        r.endTime &&
+        r.name &&
+        typeof r.date === "string"
+    );
+
+    const sorted = [...filtered].sort((a, b) => {
+      const dateA = safeString(a.date);
+      const dateB = safeString(b.date);
+      const roomA = safeString(a.room);
+      const roomB = safeString(b.room);
+      const timeA = safeString(a.startTime);
+      const timeB = safeString(b.startTime);
+
+      const byDate = dateA.localeCompare(dateB);
       if (byDate !== 0) return byDate;
-      const byRoom = safeString(a.room).localeCompare(safeString(b.room));
+
+      const byRoom = roomA.localeCompare(roomB);
       if (byRoom !== 0) return byRoom;
-      return safeString(a.startTime).localeCompare(safeString(b.startTime));
+
+      return timeA.localeCompare(timeB);
     });
 
     const grouped = {};
     sorted.forEach((r) => {
       const date = safeString(r.date);
       const room = safeString(r.room);
+
       if (!grouped[date]) grouped[date] = {};
       if (!grouped[date][room]) grouped[date][room] = [];
       grouped[date][room].push(r);
@@ -126,23 +154,54 @@ const App = () => {
         <div>
           <h2 className="text-3xl font-semibold mb-6">📌 予約入力</h2>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
-            <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
-            <select name="department" value={formData.department} onChange={handleChange} className="text-xl p-4 border rounded-xl">
+            <input
+              name="name"
+              placeholder="名前"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              className="text-xl p-4 border rounded-xl"
+            />
+            <select
+              name="department"
+              value={formData.department}
+              onChange={handleChange}
+              className="text-xl p-4 border rounded-xl"
+            >
               <option value="役員">役員</option>
               <option value="新門司手摺">新門司手摺</option>
               <option value="新門司セラミック">新門司セラミック</option>
               <option value="総務部">総務部</option>
               <option value="その他">その他</option>
             </select>
-            <input name="purpose" placeholder="使用目的" value={formData.purpose} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
-            <input name="guest" placeholder="来客者名" value={formData.guest} onChange={handleChange} className="text-xl p-4 border rounded-xl" />
-            <select name="room" value={formData.room} onChange={handleChange} className="text-xl p-4 border rounded-xl">
+            <input
+              name="purpose"
+              placeholder="使用目的"
+              value={formData.purpose}
+              onChange={handleChange}
+              required
+              className="text-xl p-4 border rounded-xl"
+            />
+            <input
+              name="guest"
+              placeholder="来客者名"
+              value={formData.guest}
+              onChange={handleChange}
+              className="text-xl p-4 border rounded-xl"
+            />
+            <select
+              name="room"
+              value={formData.room}
+              onChange={handleChange}
+              className="text-xl p-4 border rounded-xl"
+            >
               <option value="1階食堂">1階食堂</option>
               <option value="2階会議室①">2階会議室①</option>
               <option value="2階会議室②">2階会議室②</option>
               <option value="3階会議室">3階会議室</option>
               <option value="応接室">応接室</option>
             </select>
+
             <input
               name="date"
               type="date"
@@ -156,17 +215,31 @@ const App = () => {
             <div className="flex gap-4">
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">開始時間</label>
-                <select name="startTime" value={formData.startTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
+                <select
+                  name="startTime"
+                  value={formData.startTime}
+                  onChange={handleChange}
+                  className="text-xl p-4 border rounded-xl w-full"
+                >
                   {timeOptions.map((time) => (
-                    <option key={time} value={time}>{time}</option>
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">終了時間</label>
-                <select name="endTime" value={formData.endTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
+                <select
+                  name="endTime"
+                  value={formData.endTime}
+                  onChange={handleChange}
+                  className="text-xl p-4 border rounded-xl w-full"
+                >
                   {timeOptions.map((time) => (
-                    <option key={time} value={time}>{time}</option>
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -190,8 +263,14 @@ const App = () => {
                   <ul className="ml-6">
                     {entries.map((r) => (
                       <li key={r.id} className="mb-2">
-                        {r.startTime}〜{r.endTime} - {r.name}（{r.department}） / {r.purpose} {r.guest && `/ 来客: ${r.guest}`}
-                        <button onClick={() => handleDelete(r.id)} className="text-red-600 ml-4 hover:underline text-lg">削除</button>
+                        {r.startTime}〜{r.endTime} - {r.name}（{r.department}） / {r.purpose}
+                        {r.guest && ` / 来客: ${r.guest}`}
+                        <button
+                          onClick={() => handleDelete(r.id)}
+                          className="text-red-600 ml-4 hover:underline text-lg"
+                        >
+                          削除
+                        </button>
                       </li>
                     ))}
                   </ul>
