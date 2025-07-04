@@ -15,7 +15,6 @@ const App = () => {
     startTime: "08:30",
     endTime: "09:00"
   });
-  const [errorMessage, setErrorMessage] = useState("");
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -59,20 +58,20 @@ const App = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMessage("");
 
     if (formData.startTime >= formData.endTime) {
-      setErrorMessage("❌ 終了時間は開始時間より後にしてください。");
+      alert("❌ 終了時間は開始時間より後にしてください。");
       return;
     }
 
     if (isOverlapping(formData)) {
-      setErrorMessage("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
+      alert("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
       return;
     }
 
     try {
       await addDoc(collection(db, "reservations"), formData);
+      alert("✅ 予約が完了しました。");
       setFormData({
         name: "",
         department: "役員",
@@ -85,7 +84,7 @@ const App = () => {
       });
     } catch (error) {
       console.error("Firestore書き込み失敗:", error);
-      setErrorMessage("❌ 保存に失敗しました。後ほど確認してください。");
+      alert("❌ 保存に失敗しました。後ほど確認してください。");
     }
   };
 
@@ -140,17 +139,12 @@ const App = () => {
   };
 
   return (
-    <div className="p-10 font-sans text-xl">
+    <div className="p-10 font-sans text-xl bg-gray-50 min-h-screen">
       <h1 className="text-5xl font-bold mb-10">📖 KOTANI会議室予約アプリ</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
         {/* フォーム */}
         <div>
           <h2 className="text-3xl font-semibold mb-6">📌 予約入力</h2>
-          {errorMessage && (
-            <div className="text-red-600 bg-red-100 border border-red-300 rounded-xl p-4 mb-4 text-xl">
-              {errorMessage}
-            </div>
-          )}
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
             <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
             <select name="department" value={formData.department} onChange={handleChange} className="text-xl p-4 border rounded-xl">
@@ -169,7 +163,15 @@ const App = () => {
               <option value="3階会議室">3階会議室</option>
               <option value="応接室">応接室</option>
             </select>
-            <input name="date" type="date" min={today} value={formData.date} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
+            <input
+              name="date"
+              type="date"
+              min={today}
+              value={formData.date}
+              onChange={handleChange}
+              required
+              className="text-xl p-4 border rounded-xl"
+            />
             <div className="flex gap-4">
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">開始時間</label>
@@ -194,23 +196,35 @@ const App = () => {
           </form>
         </div>
 
-        {/* 一覧 */}
+        {/* 一覧表示 */}
         <div>
           <h2 className="text-3xl font-semibold mb-6">📅 予約一覧</h2>
           {Object.entries(groupedReservations()).map(([date, rooms]) => (
-            <div key={date} className="mb-8">
-              <h3 className="text-2xl font-bold mb-3">📅 {date}</h3>
+            <div key={date} className="mb-10">
+              <h3 className="text-2xl font-bold mb-4 bg-blue-100 px-4 py-2 rounded-xl inline-block text-blue-800">
+                📅 {new Date(date).toLocaleDateString("ja-JP", { weekday: "short", year: "numeric", month: "long", day: "numeric" })}
+              </h3>
               {Object.entries(rooms).map(([room, entries]) => (
-                <div key={room} className="mb-3">
-                  <h4 className="text-xl font-semibold mb-2">🏢 {room}</h4>
-                  <ul className="ml-6">
+                <div key={room} className="mb-6 p-4 border border-gray-300 rounded-xl shadow-md bg-white">
+                  <h4 className="text-2xl font-bold mb-3 text-blue-600">🏢 {room}</h4>
+                  <div className="space-y-3">
                     {entries.map((r) => (
-                      <li key={r.id} className="mb-2 border-l-4 pl-4 border-blue-400">
-                        <span className="font-mono text-blue-800">{r.startTime}〜{r.endTime}</span> - <span className="font-bold">{r.name}</span>（{r.department}） / {r.purpose} {r.guest && `/ 来客: ${r.guest}`}
-                        <button onClick={() => handleDelete(r.id)} className="text-red-600 ml-4 hover:underline text-lg">削除</button>
-                      </li>
+                      <div key={r.id} className="p-4 bg-gray-100 rounded-lg flex justify-between items-center">
+                        <div>
+                          <div className="text-lg font-semibold">{r.startTime}〜{r.endTime}</div>
+                          <div className="text-sm text-gray-700">
+                            {r.name}（{r.department}） / {r.purpose} {r.guest && ` / 来客: ${r.guest}`}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDelete(r.id)}
+                          className="text-red-600 hover:underline text-sm"
+                        >
+                          削除
+                        </button>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               ))}
             </div>
