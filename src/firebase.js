@@ -1,14 +1,13 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// 修正済みの Firebase 設定
 const firebaseConfig = {
-  apiKey: "AIzaSyBc4YbC8i4e0vTGAnNB_7KPAw0tIPBXw-k",
-  authDomain: "kotani-y.firebaseapp.com",
-  projectId: "kotani-y",
-  storageBucket: "kotani-y.appspot.com", // ← 修正！
-  messagingSenderId: "660389982374",
-  appId: "1:660389982374:web:3797ee189f84c998288467"
+  apiKey: "AIzaSyBtLFNwnAqBYFR7eFi-bKaT4Vq9Zu15a6I",
+  authDomain: "kotaniapp-4f017.firebaseapp.com",
+  projectId: "kotaniapp-4f017",
+  storageBucket: "kotaniapp-4f017.appspot.com", // ✅ 修正ここ！
+  messagingSenderId: "623409374889",
+  appId: "1:623409374889:web:ce7f3636fccb126323abb8"
 };
 
 const app = initializeApp(firebaseConfig);
