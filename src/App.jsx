@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { db } from "./firebase";
-import { collection, addDoc, deleteDoc, doc, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
 
 const App = () => {
   const [reservations, setReservations] = useState([]);
@@ -13,10 +19,10 @@ const App = () => {
     room: "1階食堂",
     date: "",
     startTime: "08:30",
-    endTime: "09:00"
+    endTime: "09:00",
   });
 
-  const today = new Date().toISOString().split("T")[0]; // 本日の日付（YYYY-MM-DD）
+  const today = new Date().toISOString().split("T")[0];
 
   const timeOptions = [];
   for (let hour = 8; hour <= 18; hour++) {
@@ -32,7 +38,7 @@ const App = () => {
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "reservations"), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setReservations(data);
     });
     return () => unsubscribe();
@@ -40,19 +46,17 @@ const App = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const isOverlapping = (newRes) => {
     return reservations.some((r) =>
-      r.date === newRes.date &&
       r.name === newRes.name &&
-      !(
-        newRes.endTime <= r.startTime || newRes.startTime >= r.endTime
-      )
+      r.date === newRes.date &&
+      !(newRes.endTime <= r.startTime || newRes.startTime >= r.endTime)
     );
   };
 
@@ -65,7 +69,7 @@ const App = () => {
     }
 
     if (isOverlapping(formData)) {
-      alert("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
+      alert("⚠️ 同じ名前で同じ日・同じ時間帯の予約があります（部屋が違ってもNG）");
       return;
     }
 
@@ -80,7 +84,7 @@ const App = () => {
         room: "1階食堂",
         date: "",
         startTime: "08:30",
-        endTime: "09:00"
+        endTime: "09:00",
       });
     } catch (error) {
       console.error("Firestore書き込み失敗:", error);
@@ -93,43 +97,19 @@ const App = () => {
   };
 
   const groupedReservations = () => {
-    const safeString = (value) =>
-      typeof value === "string" ? value : value?.toString?.() || "";
-
-    const filtered = reservations.filter(
-      (r) =>
-        r &&
-        typeof r === "object" &&
-        r.date &&
-        r.room &&
-        r.startTime &&
-        r.endTime &&
-        r.name &&
-        typeof r.date === "string"
-    );
-
-    const sorted = [...filtered].sort((a, b) => {
-      const dateA = safeString(a.date);
-      const dateB = safeString(b.date);
-      const roomA = safeString(a.room);
-      const roomB = safeString(b.room);
-      const timeA = safeString(a.startTime);
-      const timeB = safeString(b.startTime);
-
-      const byDate = dateA.localeCompare(dateB);
+    const safeString = (v) => (typeof v === "string" ? v : v?.toString?.() || "");
+    const sorted = [...reservations].sort((a, b) => {
+      const byDate = safeString(a.date).localeCompare(safeString(b.date));
       if (byDate !== 0) return byDate;
-
-      const byRoom = roomA.localeCompare(roomB);
+      const byRoom = safeString(a.room).localeCompare(safeString(b.room));
       if (byRoom !== 0) return byRoom;
-
-      return timeA.localeCompare(timeB);
+      return safeString(a.startTime).localeCompare(safeString(b.startTime));
     });
 
     const grouped = {};
     sorted.forEach((r) => {
       const date = safeString(r.date);
       const room = safeString(r.room);
-
       if (!grouped[date]) grouped[date] = {};
       if (!grouped[date][room]) grouped[date][room] = [];
       grouped[date][room].push(r);
@@ -163,11 +143,10 @@ const App = () => {
               <option value="3階会議室">3階会議室</option>
               <option value="応接室">応接室</option>
             </select>
-
             <input
               name="date"
               type="date"
-              min={today} // ← カレンダーで過去日付を選べなくする
+              min={today}
               value={formData.date}
               onChange={handleChange}
               required
@@ -178,7 +157,7 @@ const App = () => {
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">開始時間</label>
                 <select name="startTime" value={formData.startTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
-                  {timeOptions.map(time => (
+                  {timeOptions.map((time) => (
                     <option key={time} value={time}>{time}</option>
                   ))}
                 </select>
@@ -186,7 +165,7 @@ const App = () => {
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">終了時間</label>
                 <select name="endTime" value={formData.endTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
-                  {timeOptions.map(time => (
+                  {timeOptions.map((time) => (
                     <option key={time} value={time}>{time}</option>
                   ))}
                 </select>
