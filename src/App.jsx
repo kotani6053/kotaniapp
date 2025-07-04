@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { db } from "./firebase";
-import { collection, addDoc, deleteDoc, doc, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
 
 const App = () => {
+  const today = new Date().toISOString().split("T")[0];
+
   const [reservations, setReservations] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
@@ -11,9 +19,9 @@ const App = () => {
     purpose: "",
     guest: "",
     room: "1階食堂",
-    date: "",
+    date: today,
     startTime: "08:30",
-    endTime: "09:00"
+    endTime: "09:00",
   });
 
   const timeOptions = [];
@@ -21,7 +29,7 @@ const App = () => {
     for (let min = 0; min < 60; min += 10) {
       const h = String(hour).padStart(2, "0");
       const m = String(min).padStart(2, "0");
-      const time = ${h}:${m};
+      const time = `${h}:${m}`;
       if (time >= "08:30" && time <= "18:00") {
         timeOptions.push(time);
       }
@@ -30,7 +38,7 @@ const App = () => {
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "reservations"), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setReservations(data);
     });
     return () => unsubscribe();
@@ -38,17 +46,23 @@ const App = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const timeToMinutes = (time) => {
+    const [h, m] = time.split(":").map(Number);
+    return h * 60 + m;
   };
 
   const isOverlapping = (newRes) => {
-    return reservations.some((r) =>
-      r.date === newRes.date &&
-      r.room === newRes.room &&
-      !(newRes.endTime <= r.startTime || newRes.startTime >= r.endTime)
+    return reservations.some(
+      (r) =>
+        r.date === newRes.date &&
+        r.name === newRes.name &&
+        !(
+          timeToMinutes(newRes.endTime) <= timeToMinutes(r.startTime) ||
+          timeToMinutes(newRes.startTime) >= timeToMinutes(r.endTime)
+        )
     );
   };
 
@@ -61,7 +75,7 @@ const App = () => {
     }
 
     if (isOverlapping(formData)) {
-      alert("⚠️ 他の予約と時間が重複しています。");
+      alert("⚠️ 同じ名前で同日の重複予約があります（部屋が違ってもNG）");
       return;
     }
 
@@ -74,9 +88,9 @@ const App = () => {
         purpose: "",
         guest: "",
         room: "1階食堂",
-        date: "",
+        date: today,
         startTime: "08:30",
-        endTime: "09:00"
+        endTime: "09:00",
       });
     } catch (error) {
       console.error("Firestore書き込み失敗:", error);
@@ -88,57 +102,29 @@ const App = () => {
     await deleteDoc(doc(db, "reservations", id));
   };
 
-const groupedReservations = () => {
-  const safeString = (value) =>
-    typeof value === "string" ? value : value?.toString?.() || "";
+  const groupedReservations = () => {
+    const safeString = (value) => (typeof value === "string" ? value : "");
+    const sorted = [...reservations].sort((a, b) => {
+      const byDate = safeString(a.date).localeCompare(safeString(b.date));
+      const byRoom = safeString(a.room).localeCompare(safeString(b.room));
+      const byTime = safeString(a.startTime).localeCompare(safeString(b.startTime));
+      return byDate || byRoom || byTime;
+    });
+    const grouped = {};
+    sorted.forEach((r) => {
+      const date = safeString(r.date);
+      const room = safeString(r.room);
+      if (!grouped[date]) grouped[date] = {};
+      if (!grouped[date][room]) grouped[date][room] = [];
+      grouped[date][room].push(r);
+    });
+    return grouped;
+  };
 
-  const filtered = reservations.filter(
-    (r) =>
-      r &&
-      typeof r === "object" &&
-      r.date &&
-      r.room &&
-      r.startTime &&
-      r.endTime &&
-      r.name &&
-      typeof r.date === "string" &&
-      typeof r.room === "string" &&
-      typeof r.startTime === "string" &&
-      typeof r.endTime === "string"
-  );
-
-  const sorted = [...filtered].sort((a, b) => {
-    const dateA = safeString(a.date);
-    const dateB = safeString(b.date);
-    const roomA = safeString(a.room);
-    const roomB = safeString(b.room);
-    const timeA = safeString(a.startTime);
-    const timeB = safeString(b.startTime);
-
-    const byDate = dateA.localeCompare(dateB);
-    if (byDate !== 0) return byDate;
-
-    const byRoom = roomA.localeCompare(roomB);
-    if (byRoom !== 0) return byRoom;
-
-    return timeA.localeCompare(timeB);
-  });
-
-  const grouped = {};
-  sorted.forEach((r) => {
-    const date = safeString(r.date);
-    const room = safeString(r.room);
-
-    if (!grouped[date]) grouped[date] = {};
-    if (!grouped[date][room]) grouped[date][room] = [];
-    grouped[date][room].push(r);
-  });
-
-  return grouped;
-};
-
-
-  
+  const getTimePercent = (time) => {
+    const [h, m] = time.split(":".map(Number));
+    return ((h * 60 + m - 510) / 570) * 100; // 08:30 = 510分, 全体570分 (09.5時間)
+  };
 
   return (
     <div className="p-10 font-sans text-xl">
@@ -165,13 +151,12 @@ const groupedReservations = () => {
               <option value="3階会議室">3階会議室</option>
               <option value="応接室">応接室</option>
             </select>
-            <input name="date" type="date" value={formData.date} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
-
+            <input name="date" type="date" min={today} value={formData.date} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
             <div className="flex gap-4">
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">開始時間</label>
                 <select name="startTime" value={formData.startTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
-                  {timeOptions.map(time => (
+                  {timeOptions.map((time) => (
                     <option key={time} value={time}>{time}</option>
                   ))}
                 </select>
@@ -179,13 +164,12 @@ const groupedReservations = () => {
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">終了時間</label>
                 <select name="endTime" value={formData.endTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
-                  {timeOptions.map(time => (
+                  {timeOptions.map((time) => (
                     <option key={time} value={time}>{time}</option>
                   ))}
                 </select>
               </div>
             </div>
-
             <button className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-5xl font-extrabold px-20 py-10 rounded-3xl shadow-2xl hover:scale-110 hover:brightness-110 transition-transform duration-300 ease-in-out">
               🚀 予約する
             </button>
@@ -201,10 +185,27 @@ const groupedReservations = () => {
               {Object.entries(rooms).map(([room, entries]) => (
                 <div key={room} className="mb-3">
                   <h4 className="text-xl font-semibold mb-2">🏢 {room}</h4>
+                  <div className="relative h-10 bg-gray-100 rounded mb-4">
+                    {entries.map((r) => {
+                      const startPercent = getTimePercent(r.startTime);
+                      const endPercent = getTimePercent(r.endTime);
+                      const widthPercent = endPercent - startPercent;
+                      return (
+                        <div
+                          key={r.id}
+                          className="absolute top-0 h-full bg-blue-500 text-white text-sm px-2 rounded"
+                          style={{ left: `${startPercent}%`, width: `${widthPercent}%` }}
+                        >
+                          {r.startTime}〜{r.endTime}：{r.name}
+                        </div>
+                      );
+                    })}
+                  </div>
                   <ul className="ml-6">
                     {entries.map((r) => (
                       <li key={r.id} className="mb-2">
-                        {r.startTime}〜{r.endTime} - {r.name}（{r.department}） / {r.purpose} {r.guest && / 来客: ${r.guest}}
+                        {r.startTime}〜{r.endTime} - {r.name}（{r.department}） / {r.purpose}
+                        {r.guest && ` / 来客: ${r.guest}`}
                         <button onClick={() => handleDelete(r.id)} className="text-red-600 ml-4 hover:underline text-lg">削除</button>
                       </li>
                     ))}
