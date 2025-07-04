@@ -46,26 +46,27 @@ const App = () => {
     }));
   };
 
-  // 修正済み：同じ名前、同じ日で時間重なり → NG（部屋問わず）
-  const isOverlapping = (newRes) => {
-    return reservations.some((r) =>
-      r &&
-      r.name?.trim() === newRes.name?.trim() &&
-      r.date === newRes.date &&
-      !(
-        newRes.endTime <= r.startTime ||
-        newRes.startTime >= r.endTime
-      )
-    );
-  };
+const normalize = (str) => str?.trim().toLowerCase();
+
+const isOverlapping = (newRes) => {
+  const newName = normalize(newRes.name);
+  return reservations.some((r) =>
+    normalize(r.name) === newName &&
+    r.date === newRes.date &&
+    !(
+      newRes.endTime <= r.startTime || newRes.startTime >= r.endTime
+    )
+  );
+};
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!formData.name.trim()) {
-      alert("❌ 名前を入力してください。");
-      return;
-    }
+  alert("❌ 名前を入力してください。");
+  return;
+}
 
     if (formData.startTime >= formData.endTime) {
       alert("❌ 終了時間は開始時間より後にしてください。");
