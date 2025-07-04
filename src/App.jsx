@@ -88,13 +88,26 @@ const App = () => {
     await deleteDoc(doc(db, "reservations", id));
   };
 
- const groupedReservations = () => {
+const groupedReservations = () => {
   const safeString = (value) =>
-    typeof value === "string" ? value : (value?.toString?.() || "");
+    typeof value === "string" ? value : value?.toString?.() || "";
 
-  const sorted = [...reservations].filter((r) =>
-    r && r.date && r.room && r.startTime
-  ).sort((a, b) => {
+  const filtered = reservations.filter(
+    (r) =>
+      r &&
+      typeof r === "object" &&
+      r.date &&
+      r.room &&
+      r.startTime &&
+      r.endTime &&
+      r.name &&
+      typeof r.date === "string" &&
+      typeof r.room === "string" &&
+      typeof r.startTime === "string" &&
+      typeof r.endTime === "string"
+  );
+
+  const sorted = [...filtered].sort((a, b) => {
     const dateA = safeString(a.date);
     const dateB = safeString(b.date);
     const roomA = safeString(a.room);
@@ -113,8 +126,9 @@ const App = () => {
 
   const grouped = {};
   sorted.forEach((r) => {
-    const date = safeString(r.date) || "未設定";
-    const room = safeString(r.room) || "未設定";
+    const date = safeString(r.date);
+    const room = safeString(r.room);
+
     if (!grouped[date]) grouped[date] = {};
     if (!grouped[date][room]) grouped[date][room] = [];
     grouped[date][room].push(r);
@@ -124,17 +138,7 @@ const App = () => {
 };
 
 
-    const grouped = {};
-    sorted.forEach((r) => {
-      const date = safeString(r.date);
-      const room = safeString(r.room);
-      if (!grouped[date]) grouped[date] = {};
-      if (!grouped[date][room]) grouped[date][room] = [];
-      grouped[date][room].push(r);
-    });
-
-    return grouped;
-  };
+  
 
   return (
     <div className="p-10 font-sans text-xl">
