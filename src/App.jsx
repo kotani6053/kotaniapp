@@ -89,27 +89,42 @@ const App = () => {
   };
 
   const groupedReservations = () => {
-  const safeValue = (val) => (typeof val === "string" ? val : "");
+  const safeString = (value) => (typeof value === "string" ? value : "");
 
   const sorted = [...reservations].sort((a, b) => {
-    const byDate = safeValue(a.date).localeCompare(safeValue(b.date));
+    const dateA = safeString(a.date);
+    const dateB = safeString(b.date);
+    const roomA = safeString(a.room);
+    const roomB = safeString(b.room);
+    const timeA = safeString(a.startTime);
+    const timeB = safeString(b.startTime);
+
+    const byDate = dateA.localeCompare(dateB);
     if (byDate !== 0) return byDate;
-    const byRoom = safeValue(a.room).localeCompare(safeValue(b.room));
+
+    const byRoom = roomA.localeCompare(roomB);
     if (byRoom !== 0) return byRoom;
-    return safeValue(a.startTime).localeCompare(safeValue(b.startTime));
+
+    return timeA.localeCompare(timeB);
   });
 
   const grouped = {};
   sorted.forEach((r) => {
-    const date = safeValue(r.date);
-    const room = safeValue(r.room);
-    if (!grouped[date]) grouped[date] = {};
-    if (!grouped[date][room]) grouped[date][room] = [];
+    const date = safeString(r.date);
+    const room = safeString(r.room);
+
+    if (!grouped[date]) {
+      grouped[date] = {};
+    }
+    if (!grouped[date][room]) {
+      grouped[date][room] = [];
+    }
     grouped[date][room].push(r);
   });
 
   return grouped;
 };
+
 
 
     const grouped = {};
