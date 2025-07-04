@@ -13,17 +13,15 @@ const App = () => {
     room: "1階食堂",
     date: "",
     startTime: "08:30",
-    endTime: "09:00",
+    endTime: "09:00"
   });
-
-  const today = new Date().toISOString().split("T")[0]; // 本日（YYYY-MM-DD）
 
   const timeOptions = [];
   for (let hour = 8; hour <= 18; hour++) {
     for (let min = 0; min < 60; min += 10) {
       const h = String(hour).padStart(2, "0");
       const m = String(min).padStart(2, "0");
-      const time = `${h}:${m}`;
+      const time = ${h}:${m};
       if (time >= "08:30" && time <= "18:00") {
         timeOptions.push(time);
       }
@@ -32,7 +30,7 @@ const App = () => {
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "reservations"), (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReservations(data);
     });
     return () => unsubscribe();
@@ -40,33 +38,22 @@ const App = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
-      [name]: value,
+      [name]: value
     }));
   };
 
-const normalize = (str) => str?.trim().toLowerCase();
-
-const isOverlapping = (newRes) => {
-  const newName = normalize(newRes.name);
-  return reservations.some((r) =>
-    normalize(r.name) === newName &&
-    r.date === newRes.date &&
-    !(
-      newRes.endTime <= r.startTime || newRes.startTime >= r.endTime
-    )
-  );
-};
-
+  const isOverlapping = (newRes) => {
+    return reservations.some((r) =>
+      r.date === newRes.date &&
+      r.room === newRes.room &&
+      !(newRes.endTime <= r.startTime || newRes.startTime >= r.endTime)
+    );
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!formData.name.trim()) {
-  alert("❌ 名前を入力してください。");
-  return;
-}
 
     if (formData.startTime >= formData.endTime) {
       alert("❌ 終了時間は開始時間より後にしてください。");
@@ -74,7 +61,7 @@ const isOverlapping = (newRes) => {
     }
 
     if (isOverlapping(formData)) {
-      alert("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
+      alert("⚠️ 他の予約と時間が重複しています。");
       return;
     }
 
@@ -89,7 +76,7 @@ const isOverlapping = (newRes) => {
         room: "1階食堂",
         date: "",
         startTime: "08:30",
-        endTime: "09:00",
+        endTime: "09:00"
       });
     } catch (error) {
       console.error("Firestore書き込み失敗:", error);
@@ -101,51 +88,57 @@ const isOverlapping = (newRes) => {
     await deleteDoc(doc(db, "reservations", id));
   };
 
-  const groupedReservations = () => {
-    const safeString = (value) =>
-      typeof value === "string" ? value : value?.toString?.() || "";
+const groupedReservations = () => {
+  const safeString = (value) =>
+    typeof value === "string" ? value : value?.toString?.() || "";
 
-    const filtered = reservations.filter(
-      (r) =>
-        r &&
-        typeof r === "object" &&
-        r.date &&
-        r.room &&
-        r.startTime &&
-        r.endTime &&
-        r.name &&
-        typeof r.date === "string"
-    );
+  const filtered = reservations.filter(
+    (r) =>
+      r &&
+      typeof r === "object" &&
+      r.date &&
+      r.room &&
+      r.startTime &&
+      r.endTime &&
+      r.name &&
+      typeof r.date === "string" &&
+      typeof r.room === "string" &&
+      typeof r.startTime === "string" &&
+      typeof r.endTime === "string"
+  );
 
-    const sorted = [...filtered].sort((a, b) => {
-      const dateA = safeString(a.date);
-      const dateB = safeString(b.date);
-      const roomA = safeString(a.room);
-      const roomB = safeString(b.room);
-      const timeA = safeString(a.startTime);
-      const timeB = safeString(b.startTime);
+  const sorted = [...filtered].sort((a, b) => {
+    const dateA = safeString(a.date);
+    const dateB = safeString(b.date);
+    const roomA = safeString(a.room);
+    const roomB = safeString(b.room);
+    const timeA = safeString(a.startTime);
+    const timeB = safeString(b.startTime);
 
-      const byDate = dateA.localeCompare(dateB);
-      if (byDate !== 0) return byDate;
+    const byDate = dateA.localeCompare(dateB);
+    if (byDate !== 0) return byDate;
 
-      const byRoom = roomA.localeCompare(roomB);
-      if (byRoom !== 0) return byRoom;
+    const byRoom = roomA.localeCompare(roomB);
+    if (byRoom !== 0) return byRoom;
 
-      return timeA.localeCompare(timeB);
-    });
+    return timeA.localeCompare(timeB);
+  });
 
-    const grouped = {};
-    sorted.forEach((r) => {
-      const date = safeString(r.date);
-      const room = safeString(r.room);
+  const grouped = {};
+  sorted.forEach((r) => {
+    const date = safeString(r.date);
+    const room = safeString(r.room);
 
-      if (!grouped[date]) grouped[date] = {};
-      if (!grouped[date][room]) grouped[date][room] = [];
-      grouped[date][room].push(r);
-    });
+    if (!grouped[date]) grouped[date] = {};
+    if (!grouped[date][room]) grouped[date][room] = [];
+    grouped[date][room].push(r);
+  });
 
-    return grouped;
-  };
+  return grouped;
+};
+
+
+  
 
   return (
     <div className="p-10 font-sans text-xl">
@@ -155,92 +148,39 @@ const isOverlapping = (newRes) => {
         <div>
           <h2 className="text-3xl font-semibold mb-6">📌 予約入力</h2>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
-            <input
-              name="name"
-              placeholder="名前"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              className="text-xl p-4 border rounded-xl"
-            />
-            <select
-              name="department"
-              value={formData.department}
-              onChange={handleChange}
-              className="text-xl p-4 border rounded-xl"
-            >
+            <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
+            <select name="department" value={formData.department} onChange={handleChange} className="text-xl p-4 border rounded-xl">
               <option value="役員">役員</option>
               <option value="新門司手摺">新門司手摺</option>
               <option value="新門司セラミック">新門司セラミック</option>
               <option value="総務部">総務部</option>
               <option value="その他">その他</option>
             </select>
-            <input
-              name="purpose"
-              placeholder="使用目的"
-              value={formData.purpose}
-              onChange={handleChange}
-              required
-              className="text-xl p-4 border rounded-xl"
-            />
-            <input
-              name="guest"
-              placeholder="来客者名"
-              value={formData.guest}
-              onChange={handleChange}
-              className="text-xl p-4 border rounded-xl"
-            />
-            <select
-              name="room"
-              value={formData.room}
-              onChange={handleChange}
-              className="text-xl p-4 border rounded-xl"
-            >
+            <input name="purpose" placeholder="使用目的" value={formData.purpose} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
+            <input name="guest" placeholder="来客者名" value={formData.guest} onChange={handleChange} className="text-xl p-4 border rounded-xl" />
+            <select name="room" value={formData.room} onChange={handleChange} className="text-xl p-4 border rounded-xl">
               <option value="1階食堂">1階食堂</option>
               <option value="2階会議室①">2階会議室①</option>
               <option value="2階会議室②">2階会議室②</option>
               <option value="3階会議室">3階会議室</option>
               <option value="応接室">応接室</option>
             </select>
-
-            <input
-              name="date"
-              type="date"
-              min={today}
-              value={formData.date}
-              onChange={handleChange}
-              required
-              className="text-xl p-4 border rounded-xl"
-            />
+            <input name="date" type="date" value={formData.date} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
 
             <div className="flex gap-4">
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">開始時間</label>
-                <select
-                  name="startTime"
-                  value={formData.startTime}
-                  onChange={handleChange}
-                  className="text-xl p-4 border rounded-xl w-full"
-                >
-                  {timeOptions.map((time) => (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
+                <select name="startTime" value={formData.startTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
+                  {timeOptions.map(time => (
+                    <option key={time} value={time}>{time}</option>
                   ))}
                 </select>
               </div>
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">終了時間</label>
-                <select
-                  name="endTime"
-                  value={formData.endTime}
-                  onChange={handleChange}
-                  className="text-xl p-4 border rounded-xl w-full"
-                >
-                  {timeOptions.map((time) => (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
+                <select name="endTime" value={formData.endTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
+                  {timeOptions.map(time => (
+                    <option key={time} value={time}>{time}</option>
                   ))}
                 </select>
               </div>
@@ -264,14 +204,8 @@ const isOverlapping = (newRes) => {
                   <ul className="ml-6">
                     {entries.map((r) => (
                       <li key={r.id} className="mb-2">
-                        {r.startTime}〜{r.endTime} - {r.name}（{r.department}） / {r.purpose}
-                        {r.guest && ` / 来客: ${r.guest}`}
-                        <button
-                          onClick={() => handleDelete(r.id)}
-                          className="text-red-600 ml-4 hover:underline text-lg"
-                        >
-                          削除
-                        </button>
+                        {r.startTime}〜{r.endTime} - {r.name}（{r.department}） / {r.purpose} {r.guest && / 来客: ${r.guest}}
+                        <button onClick={() => handleDelete(r.id)} className="text-red-600 ml-4 hover:underline text-lg">削除</button>
                       </li>
                     ))}
                   </ul>
