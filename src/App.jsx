@@ -11,12 +11,13 @@ const App = () => {
     purpose: "",
     guest: "",
     room: "1階食堂",
-    date: "",
+    date: new Date().toISOString().split("T")[0],
     startTime: "08:30",
     endTime: "09:00"
   });
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const today = new Date().toISOString().split("T")[0]; // 本日の日付（YYYY-MM-DD）
+  const today = new Date().toISOString().split("T")[0];
 
   const timeOptions = [];
   for (let hour = 8; hour <= 18; hour++) {
@@ -58,33 +59,33 @@ const App = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage("");
 
     if (formData.startTime >= formData.endTime) {
-      alert("❌ 終了時間は開始時間より後にしてください。");
+      setErrorMessage("❌ 終了時間は開始時間より後にしてください。");
       return;
     }
 
     if (isOverlapping(formData)) {
-      alert("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
+      setErrorMessage("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
       return;
     }
 
     try {
       await addDoc(collection(db, "reservations"), formData);
-      alert("✅ 予約が完了しました。");
       setFormData({
         name: "",
         department: "役員",
         purpose: "",
         guest: "",
         room: "1階食堂",
-        date: "",
+        date: today,
         startTime: "08:30",
         endTime: "09:00"
       });
     } catch (error) {
       console.error("Firestore書き込み失敗:", error);
-      alert("❌ 保存に失敗しました。後ほど確認してください。");
+      setErrorMessage("❌ 保存に失敗しました。後ほど確認してください。");
     }
   };
 
@@ -145,6 +146,11 @@ const App = () => {
         {/* フォーム */}
         <div>
           <h2 className="text-3xl font-semibold mb-6">📌 予約入力</h2>
+          {errorMessage && (
+            <div className="text-red-600 bg-red-100 border border-red-300 rounded-xl p-4 mb-4 text-xl">
+              {errorMessage}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
             <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
             <select name="department" value={formData.department} onChange={handleChange} className="text-xl p-4 border rounded-xl">
@@ -163,17 +169,7 @@ const App = () => {
               <option value="3階会議室">3階会議室</option>
               <option value="応接室">応接室</option>
             </select>
-
-            <input
-              name="date"
-              type="date"
-              min={today} // ← カレンダーで過去日付を選べなくする
-              value={formData.date}
-              onChange={handleChange}
-              required
-              className="text-xl p-4 border rounded-xl"
-            />
-
+            <input name="date" type="date" min={today} value={formData.date} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
             <div className="flex gap-4">
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">開始時間</label>
@@ -192,7 +188,6 @@ const App = () => {
                 </select>
               </div>
             </div>
-
             <button className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-5xl font-extrabold px-20 py-10 rounded-3xl shadow-2xl hover:scale-110 hover:brightness-110 transition-transform duration-300 ease-in-out">
               🚀 予約する
             </button>
@@ -210,8 +205,8 @@ const App = () => {
                   <h4 className="text-xl font-semibold mb-2">🏢 {room}</h4>
                   <ul className="ml-6">
                     {entries.map((r) => (
-                      <li key={r.id} className="mb-2">
-                        {r.startTime}〜{r.endTime} - {r.name}（{r.department}） / {r.purpose} {r.guest && `/ 来客: ${r.guest}`}
+                      <li key={r.id} className="mb-2 border-l-4 pl-4 border-blue-400">
+                        <span className="font-mono text-blue-800">{r.startTime}〜{r.endTime}</span> - <span className="font-bold">{r.name}</span>（{r.department}） / {r.purpose} {r.guest && `/ 来客: ${r.guest}`}
                         <button onClick={() => handleDelete(r.id)} className="text-red-600 ml-4 hover:underline text-lg">削除</button>
                       </li>
                     ))}
