@@ -88,25 +88,41 @@ const App = () => {
     await deleteDoc(doc(db, "reservations", id));
   };
 
-  const groupedReservations = () => {
-    const safeString = (value) => (typeof value === "string" ? value : "");
+ const groupedReservations = () => {
+  const safeString = (value) =>
+    typeof value === "string" ? value : (value?.toString?.() || "");
 
-    const sorted = [...reservations].sort((a, b) => {
-      const dateA = safeString(a.date);
-      const dateB = safeString(b.date);
-      const roomA = safeString(a.room);
-      const roomB = safeString(b.room);
-      const timeA = safeString(a.startTime);
-      const timeB = safeString(b.startTime);
+  const sorted = [...reservations].filter((r) =>
+    r && r.date && r.room && r.startTime
+  ).sort((a, b) => {
+    const dateA = safeString(a.date);
+    const dateB = safeString(b.date);
+    const roomA = safeString(a.room);
+    const roomB = safeString(b.room);
+    const timeA = safeString(a.startTime);
+    const timeB = safeString(b.startTime);
 
-      const byDate = dateA.localeCompare(dateB);
-      if (byDate !== 0) return byDate;
+    const byDate = dateA.localeCompare(dateB);
+    if (byDate !== 0) return byDate;
 
-      const byRoom = roomA.localeCompare(roomB);
-      if (byRoom !== 0) return byRoom;
+    const byRoom = roomA.localeCompare(roomB);
+    if (byRoom !== 0) return byRoom;
 
-      return timeA.localeCompare(timeB);
-    });
+    return timeA.localeCompare(timeB);
+  });
+
+  const grouped = {};
+  sorted.forEach((r) => {
+    const date = safeString(r.date) || "未設定";
+    const room = safeString(r.room) || "未設定";
+    if (!grouped[date]) grouped[date] = {};
+    if (!grouped[date][room]) grouped[date][room] = [];
+    grouped[date][room].push(r);
+  });
+
+  return grouped;
+};
+
 
     const grouped = {};
     sorted.forEach((r) => {
