@@ -1,13 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { db } from "./firebase";
-import {
-  collection,
-  addDoc,
-  deleteDoc,
-  doc,
-  onSnapshot,
-} from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, onSnapshot } from "firebase/firestore";
 
 const App = () => {
   const [reservations, setReservations] = useState([]);
@@ -19,7 +13,7 @@ const App = () => {
     room: "1階食堂",
     date: "",
     startTime: "08:30",
-    endTime: "09:00",
+    endTime: "09:00"
   });
 
   const timeOptions = [];
@@ -36,10 +30,7 @@ const App = () => {
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "reservations"), (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReservations(data);
     });
     return () => unsubscribe();
@@ -47,9 +38,9 @@ const App = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
-      [name]: value,
+      [name]: value
     }));
   };
 
@@ -57,10 +48,7 @@ const App = () => {
     return reservations.some((r) =>
       r.date === newRes.date &&
       r.room === newRes.room &&
-      !(
-        newRes.endTime <= r.startTime ||
-        newRes.startTime >= r.endTime
-      )
+      !(newRes.endTime <= r.startTime || newRes.startTime >= r.endTime)
     );
   };
 
@@ -88,7 +76,7 @@ const App = () => {
         room: "1階食堂",
         date: "",
         startTime: "08:30",
-        endTime: "09:00",
+        endTime: "09:00"
       });
     } catch (error) {
       console.error("Firestore書き込み失敗:", error);
@@ -100,34 +88,25 @@ const App = () => {
     await deleteDoc(doc(db, "reservations", id));
   };
 
- const safeCompare = (a, b) => {
-  return (a ?? "").toString().localeCompare((b ?? "").toString());
-};
+  const groupedReservations = () => {
+    const safeCompare = (a, b) =>
+      (a ?? "").toString().localeCompare((b ?? "").toString());
 
-const sorted = [...reservations].sort((a, b) => {
-  const dateA = a?.date;
-  const dateB = b?.date;
-  const roomA = a?.room;
-  const roomB = b?.room;
-  const startA = a?.startTime;
-  const startB = b?.startTime;
-
-  const byDate = safeCompare(dateA, dateB);
-  if (byDate !== 0) return byDate;
-
-  const byRoom = safeCompare(roomA, roomB);
-  if (byRoom !== 0) return byRoom;
-
-  return safeCompare(startA, startB);
-});
-
+    const sorted = [...reservations].sort((a, b) => {
+      const byDate = safeCompare(a.date, b.date);
+      if (byDate !== 0) return byDate;
+      const byRoom = safeCompare(a.room, b.room);
+      if (byRoom !== 0) return byRoom;
+      return safeCompare(a.startTime, b.startTime);
+    });
 
     const grouped = {};
     sorted.forEach((r) => {
-      if (!r.date || !r.room) return;
-      if (!grouped[r.date]) grouped[r.date] = {};
-      if (!grouped[r.date][r.room]) grouped[r.date][r.room] = [];
-      grouped[r.date][r.room].push(r);
+      const date = r.date ?? "未設定";
+      const room = r.room ?? "未設定";
+      if (!grouped[date]) grouped[date] = {};
+      if (!grouped[date][room]) grouped[date][room] = [];
+      grouped[date][room].push(r);
     });
     return grouped;
   };
