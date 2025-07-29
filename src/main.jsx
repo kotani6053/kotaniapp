@@ -149,7 +149,7 @@ const App = () => {
 
   return (
     <div className="p-10 font-sans text-xl bg-gray-50 min-h-screen">
-      <h1 className="text-5xl font-bold mb-10">📖 KOTANI会議室予約アプリ</h1>
+      <h1 className="text-5xl font-bold mb-10">📖 KOTANI会議室予約</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
         {/* フォーム */}
         <div>
