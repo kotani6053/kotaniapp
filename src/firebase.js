@@ -1,21 +1,16 @@
-// firebase.js
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// Firebase設定
 const firebaseConfig = {
-  apiKey: "AIzaSyBtLFNwnAqBYFR7eFi-bKaT4Vq9Zu15a6I",
-  authDomain: "kotaniapp-4f017.firebaseapp.com",
-  projectId: "kotaniapp-4f017",
-  storageBucket: "kotaniapp-4f017.appspot.com", // ← ".app" ではなく ".com"
-  messagingSenderId: "623409374889",
-  appId: "1:623409374889:web:ce7f3636fccb126323abb8"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Firebase初期化
 const app = initializeApp(firebaseConfig);
-
-// Firestoreを取得
 const db = getFirestore(app);
 
 export { db };
