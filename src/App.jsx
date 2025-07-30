@@ -41,6 +41,15 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setErrorMessage("");
@@ -172,7 +181,7 @@ const App = () => {
               <option value="新門司手摺">新門司手摺</option>
               <option value="新門司セラミック">新門司セラミック</option>
               <option value="総務部">総務部</option>
-                <option value="役員">役員</option>
+              <option value="役員">役員</option>
               <option value="その他">その他</option>
             </select>
             <input name="purpose" placeholder="使用目的" value={formData.purpose} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
