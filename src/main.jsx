@@ -10,7 +10,7 @@ const App = () => {
 
   const [formData, setFormData] = useState({
     name: "",
-    department: "役員",
+    department: "新門司手摺",
     purpose: "",
     guest: "",
     room: "1階食堂",
@@ -82,7 +82,7 @@ const App = () => {
       setErrorMessage("");
       setFormData({
         name: "",
-        department: "役員",
+        department: "新門司手摺",
         purpose: "",
         guest: "",
         room: "1階食堂",
@@ -169,10 +169,10 @@ const App = () => {
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
             <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
             <select name="department" value={formData.department} onChange={handleChange} className="text-xl p-4 border rounded-xl">
-              <option value="役員">役員</option>
               <option value="新門司手摺">新門司手摺</option>
               <option value="新門司セラミック">新門司セラミック</option>
               <option value="総務部">総務部</option>
+                <option value="役員">役員</option>
               <option value="その他">その他</option>
             </select>
             <input name="purpose" placeholder="使用目的" value={formData.purpose} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
