@@ -106,8 +106,17 @@ const App = () => {
     }
   };
 
+  // 確認ダイアログ付き削除関数
   const handleDelete = async (id) => {
-    await deleteDoc(doc(db, "reservations", id));
+    const ok = window.confirm("本当にこの予約を削除してよいですか？");
+    if (!ok) return;
+
+    try {
+      await deleteDoc(doc(db, "reservations", id));
+    } catch (error) {
+      alert("削除に失敗しました。");
+      console.error(error);
+    }
   };
 
   const groupedReservations = () => {
@@ -176,17 +185,47 @@ const App = () => {
           )}
 
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
-            <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
-            <select name="department" value={formData.department} onChange={handleChange} className="text-xl p-4 border rounded-xl">
+            <input
+              name="name"
+              placeholder="名前"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              className="text-xl p-4 border rounded-xl"
+            />
+            <select
+              name="department"
+              value={formData.department}
+              onChange={handleChange}
+              className="text-xl p-4 border rounded-xl"
+            >
               <option value="新門司手摺">新門司手摺</option>
               <option value="新門司セラミック">新門司セラミック</option>
               <option value="総務部">総務部</option>
               <option value="役員">役員</option>
               <option value="その他">その他</option>
             </select>
-            <input name="purpose" placeholder="使用目的" value={formData.purpose} onChange={handleChange} required className="text-xl p-4 border rounded-xl" />
-            <input name="guest" placeholder="来客者名" value={formData.guest} onChange={handleChange} className="text-xl p-4 border rounded-xl" />
-            <select name="room" value={formData.room} onChange={handleChange} className="text-xl p-4 border rounded-xl">
+            <input
+              name="purpose"
+              placeholder="使用目的"
+              value={formData.purpose}
+              onChange={handleChange}
+              required
+              className="text-xl p-4 border rounded-xl"
+            />
+            <input
+              name="guest"
+              placeholder="来客者名"
+              value={formData.guest}
+              onChange={handleChange}
+              className="text-xl p-4 border rounded-xl"
+            />
+            <select
+              name="room"
+              value={formData.room}
+              onChange={handleChange}
+              className="text-xl p-4 border rounded-xl"
+            >
               <option value="1階食堂">1階食堂</option>
               <option value="2階会議室①">2階会議室①</option>
               <option value="2階会議室②">2階会議室②</option>
@@ -205,22 +244,39 @@ const App = () => {
             <div className="flex gap-4">
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">開始時間</label>
-                <select name="startTime" value={formData.startTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
-                  {timeOptions.map(time => (
-                    <option key={time} value={time}>{time}</option>
+                <select
+                  name="startTime"
+                  value={formData.startTime}
+                  onChange={handleChange}
+                  className="text-xl p-4 border rounded-xl w-full"
+                >
+                  {timeOptions.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="flex-1">
                 <label className="block text-lg font-medium mb-2">終了時間</label>
-                <select name="endTime" value={formData.endTime} onChange={handleChange} className="text-xl p-4 border rounded-xl w-full">
-                  {timeOptions.map(time => (
-                    <option key={time} value={time}>{time}</option>
+                <select
+                  name="endTime"
+                  value={formData.endTime}
+                  onChange={handleChange}
+                  className="text-xl p-4 border rounded-xl w-full"
+                >
+                  {timeOptions.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
-            <button className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-5xl font-extrabold px-20 py-10 rounded-3xl shadow-2xl hover:scale-110 hover:brightness-110 transition-transform duration-300 ease-in-out">
+            <button
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-5xl font-extrabold px-20 py-10 rounded-3xl shadow-2xl hover:scale-110 hover:brightness-110 transition-transform duration-300 ease-in-out"
+              type="submit"
+            >
               🚀 予約する
             </button>
           </form>
@@ -232,16 +288,32 @@ const App = () => {
           {Object.entries(groupedReservations()).map(([date, rooms]) => (
             <div key={date} className="mb-10">
               <h3 className="text-2xl font-bold mb-4 bg-blue-100 px-4 py-2 rounded-xl inline-block text-blue-800">
-                📅 {new Date(date).toLocaleDateString("ja-JP", { weekday: "short", year: "numeric", month: "long", day: "numeric" })}
+                📅{" "}
+                {new Date(date).toLocaleDateString("ja-JP", {
+                  weekday: "short",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric"
+                })}
               </h3>
               {Object.entries(rooms).map(([room, entries]) => (
-                <div key={room} className="mb-6 p-4 border border-gray-300 rounded-xl shadow-md bg-white">
-                  <h4 className="text-2xl font-bold mb-3 text-blue-600">🏢 {room}</h4>
+                <div
+                  key={room}
+                  className="mb-6 p-4 border border-gray-300 rounded-xl shadow-md bg-white"
+                >
+                  <h4 className="text-2xl font-bold mb-3 text-blue-600">
+                    🏢 {room}
+                  </h4>
                   <div className="space-y-3">
                     {entries.map((r) => (
-                      <div key={r.id} className="p-4 bg-gray-100 rounded-lg flex justify-between items-center">
+                      <div
+                        key={r.id}
+                        className="p-4 bg-gray-100 rounded-lg flex justify-between items-center"
+                      >
                         <div>
-                          <div className="text-lg font-semibold">{r.startTime}〜{r.endTime}</div>
+                          <div className="text-lg font-semibold">
+                            {r.startTime}〜{r.endTime}
+                          </div>
                           <div className="text-sm text-gray-700">
                             {r.name}（{r.department}） / {r.purpose}
                             {r.guest && (
