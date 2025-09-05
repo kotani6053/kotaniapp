@@ -1,7 +1,3 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App";
-import "./index.css";   // 👈 ここを追加！
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { db } from "./firebase";
