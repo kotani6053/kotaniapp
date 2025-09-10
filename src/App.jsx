@@ -16,7 +16,7 @@ const App = () => {
     room: "1階食堂",
     date: new Date().toISOString().split("T")[0],
     startTime: "08:30",
-    endTime: "09:00"
+    endTime: "09:00",
   });
 
   const today = new Date().toISOString().split("T")[0];
@@ -35,7 +35,7 @@ const App = () => {
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "reservations"), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setReservations(data);
     });
     return () => unsubscribe();
@@ -54,19 +54,22 @@ const App = () => {
     const { name, value } = e.target;
     setErrorMessage("");
     setSuccessMessage("");
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
+  // 時間の重複チェック（同じ名前 or 同じ部屋 はNG）
   const isOverlapping = (newRes) => {
-    return reservations.some((r) =>
-      r.date === newRes.date &&
-      r.name === newRes.name &&
-      !(
-        newRes.endTime <= r.startTime || newRes.startTime >= r.endTime
-      )
+    return reservations.some(
+      (r) =>
+        r.date === newRes.date &&
+        (
+          r.name === newRes.name || // 同じ名前
+          r.room === newRes.room    // 同じ部屋
+        ) &&
+        !(newRes.endTime <= r.startTime || newRes.startTime >= r.endTime)
     );
   };
 
@@ -80,7 +83,7 @@ const App = () => {
     }
 
     if (isOverlapping(formData)) {
-      setErrorMessage("⚠️ 同じ名前で同じ日の時間が重なる予約があります（部屋が違ってもNG）。");
+      setErrorMessage("⚠️ 同じ日・同じ時間に同じ名前、または同じ部屋の予約が既にあります。");
       setSuccessMessage("");
       return;
     }
@@ -97,7 +100,7 @@ const App = () => {
         room: "1階食堂",
         date: today,
         startTime: "08:30",
-        endTime: "09:00"
+        endTime: "09:00",
       });
     } catch (error) {
       console.error("Firestore書き込み失敗:", error);
@@ -293,7 +296,7 @@ const App = () => {
                   weekday: "short",
                   year: "numeric",
                   month: "long",
-                  day: "numeric"
+                  day: "numeric",
                 })}
               </h3>
               {Object.entries(rooms).map(([room, entries]) => (
@@ -318,7 +321,7 @@ const App = () => {
                             {r.name}（{r.department}） / {r.purpose}
                             {r.guest && (
                               <span className="flex items-center gap-2 mt-1">
-                               /来客: {r.guest}
+                                /来客: {r.guest}
                                 <button
                                   onClick={() => handleDelete(r.id)}
                                   className="text-red-600 hover:underline text-sm"
