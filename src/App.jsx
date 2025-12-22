@@ -126,24 +126,26 @@ export default function App() {
           ))}
         </select>
 
-        {/* ★ 時間も1列に統一 */}
+        {/* ★ 時間（ラベル付きで幅ズレ防止） */}
+        <label style={labelStyle}>開始時間</label>
         <select
           value={start}
           onChange={(e) => setStart(e.target.value)}
           style={inputStyle}
         >
           {times.map((t) => (
-            <option key={t}>開始：{t}</option>
+            <option key={t}>{t}</option>
           ))}
         </select>
 
+        <label style={labelStyle}>終了時間</label>
         <select
           value={end}
           onChange={(e) => setEnd(e.target.value)}
           style={inputStyle}
         >
           {times.map((t) => (
-            <option key={t}>終了：{t}</option>
+            <option key={t}>{t}</option>
           ))}
         </select>
 
@@ -219,6 +221,12 @@ const cardStyle = {
   boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
 };
 
+const labelStyle = {
+  fontSize: 13,
+  color: "#555",
+  marginBottom: 4,
+};
+
 const inputStyle = {
   width: "100%",
   height: 42,
@@ -235,7 +243,7 @@ const buttonStyle = {
   height: 46,
   borderRadius: 8,
   border: "none",
-  background: "#2563eb",
+  background: "#16a34a", // ← 緑
   color: "#fff",
   fontSize: 16,
   fontWeight: 600,
