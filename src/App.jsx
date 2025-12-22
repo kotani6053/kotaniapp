@@ -124,8 +124,7 @@ const App = () => {
               <option>1階食堂</option>
               <option>2階会議室①</option>
               <option>2階会議室②</option>
-              <option>3階会議室</option>
-              <option>応接室</option>
+              <option>3階応接室</option>
             </select>
 
             <input type="date" name="date" min={today} value={formData.date} onChange={handleChange} className="w-full p-4 border rounded" />
