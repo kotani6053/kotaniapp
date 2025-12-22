@@ -20,7 +20,6 @@ export default function App() {
   const [end, setEnd] = useState("09:30");
   const [list, setList] = useState([]);
 
-  /* ===== 30分刻み ===== */
   const times = [];
   for (let h = 8; h <= 18; h++) {
     ["00", "30"].forEach((m) => {
@@ -43,7 +42,6 @@ export default function App() {
     "その他",
   ];
 
-  /* ===== Firestore ===== */
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "reservations"), (snap) => {
       const data = snap.docs
@@ -54,7 +52,6 @@ export default function App() {
     return () => unsub();
   }, [date]);
 
-  /* ===== 重複チェック ===== */
   const isOverlapping = () =>
     list.some(
       (r) =>
@@ -63,11 +60,9 @@ export default function App() {
     );
 
   const addReservation = async () => {
-    if (!name) return alert("名前を入力してください");
-    if (!purpose) return alert("使用目的を入力してください");
+    if (!name || !purpose) return alert("未入力項目があります");
     if (start >= end) return alert("時間が正しくありません");
-    if (isOverlapping())
-      return alert("同じ時間帯に既に予約があります");
+    if (isOverlapping()) return alert("時間が重複しています");
 
     await addDoc(collection(db, "reservations"), {
       date,
@@ -93,124 +88,127 @@ export default function App() {
     <div style={pageStyle}>
       <h1 style={titleStyle}>会議室予約</h1>
 
-      {/* ===== 入力フォーム ===== */}
-      <div style={formContainer}>
-        <FormField label="日付">
-          <input
-            type="date"
-            value={date}
-            min={today}
-            onChange={(e) => setDate(e.target.value)}
-            style={fieldStyle}
-          />
-        </FormField>
+      {/* ===== 左右レイアウト ===== */}
+      <div style={layoutStyle}>
+        {/* 左：入力 */}
+        <div style={leftStyle}>
+          <FormField label="日付">
+            <input
+              type="date"
+              value={date}
+              min={today}
+              onChange={(e) => setDate(e.target.value)}
+              style={fieldStyle}
+            />
+          </FormField>
 
-        <FormField label="名前">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={fieldStyle}
-          />
-        </FormField>
+          <FormField label="名前">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={fieldStyle}
+            />
+          </FormField>
 
-        <FormField label="所属">
-          <select
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            style={fieldStyle}
-          >
-            {departments.map((d) => (
-              <option key={d}>{d}</option>
-            ))}
-          </select>
-        </FormField>
+          <FormField label="所属">
+            <select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              style={fieldStyle}
+            >
+              {departments.map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
+          </FormField>
 
-        <FormField label="使用目的">
-          <input
-            value={purpose}
-            onChange={(e) => setPurpose(e.target.value)}
-            style={fieldStyle}
-          />
-        </FormField>
+          <FormField label="使用目的">
+            <input
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value)}
+              style={fieldStyle}
+            />
+          </FormField>
 
-        <FormField label="部屋">
-          <select
-            value={room}
-            onChange={(e) => setRoom(e.target.value)}
-            style={fieldStyle}
-          >
-            {rooms.map((r) => (
-              <option key={r}>{r}</option>
-            ))}
-          </select>
-        </FormField>
+          <FormField label="部屋">
+            <select
+              value={room}
+              onChange={(e) => setRoom(e.target.value)}
+              style={fieldStyle}
+            >
+              {rooms.map((r) => (
+                <option key={r}>{r}</option>
+              ))}
+            </select>
+          </FormField>
 
-        <FormField label="開始時間">
-          <select
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            style={fieldStyle}
-          >
-            {times.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </FormField>
+          <FormField label="開始時間">
+            <select
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              style={fieldStyle}
+            >
+              {times.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          </FormField>
 
-        <FormField label="終了時間">
-          <select
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            style={fieldStyle}
-          >
-            {times.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </FormField>
+          <FormField label="終了時間">
+            <select
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              style={fieldStyle}
+            >
+              {times.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          </FormField>
 
-        <button onClick={addReservation} style={buttonStyle}>
-          予約する
-        </button>
-      </div>
+          <button onClick={addReservation} style={buttonStyle}>
+            予約する
+          </button>
+        </div>
 
-      {/* ===== 一覧 ===== */}
-      <div style={listContainer}>
-        {rooms.map((roomName) => (
-          <div key={roomName} style={roomBlock}>
-            <h2 style={roomTitleStyle}>{roomName}</h2>
+        {/* 右：予約一覧 */}
+        <div style={rightStyle}>
+          {rooms.map((roomName) => (
+            <div key={roomName} style={roomBlock}>
+              <h2 style={roomTitleStyle}>{roomName}</h2>
 
-            <div style={timelineCardStyle}>
-              {list
-                .filter((r) => r.room === roomName)
-                .sort((a, b) =>
-                  a.startTime.localeCompare(b.startTime)
-                )
-                .map((r) => (
-                  <div key={r.id} style={rowStyle}>
-                    <div>
-                      <strong>
-                        {r.startTime}〜{r.endTime}
-                      </strong>{" "}
-                      ／ {r.name}（{r.department}）
-                      <div style={purposeStyle}>
-                        使用目的：{r.purpose}
+              <div style={timelineCardStyle}>
+                {list
+                  .filter((r) => r.room === roomName)
+                  .sort((a, b) =>
+                    a.startTime.localeCompare(b.startTime)
+                  )
+                  .map((r) => (
+                    <div key={r.id} style={rowStyle}>
+                      <div>
+                        <strong>
+                          {r.startTime}〜{r.endTime}
+                        </strong>{" "}
+                        ／ {r.name}（{r.department}）
+                        <div style={purposeStyle}>
+                          使用目的：{r.purpose}
+                        </div>
                       </div>
+                      <button
+                        onClick={() => removeReservation(r.id)}
+                        style={deleteStyle}
+                      >
+                        削除
+                      </button>
                     </div>
-                    <button
-                      onClick={() => removeReservation(r.id)}
-                      style={deleteStyle}
-                    >
-                      削除
-                    </button>
-                  </div>
-                ))}
-              {list.filter((r) => r.room === roomName).length === 0 && (
-                <div style={emptyStyle}>予約なし</div>
-              )}
+                  ))}
+                {list.filter((r) => r.room === roomName).length === 0 && (
+                  <div style={emptyStyle}>予約なし</div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -218,79 +216,71 @@ export default function App() {
 
 /* ===== 共通 ===== */
 const FormField = ({ label, children }) => (
-  <div style={fieldGroup}>
-    <label style={labelText}>{label}</label>
+  <div style={{ marginBottom: 12 }}>
+    <label style={{ fontSize: 13, marginBottom: 4, display: "block" }}>
+      {label}
+    </label>
     {children}
   </div>
 );
 
 /* ===== style ===== */
 const pageStyle = {
-  minHeight: "100vh",
   background: "#f5f6f8",
-  padding: "40px 20px",
+  minHeight: "100vh",
+  padding: 24,
   fontFamily: "system-ui, sans-serif",
 };
 
 const titleStyle = {
   textAlign: "center",
-  fontSize: 26,
-  fontWeight: 600,
+  fontSize: 24,
   marginBottom: 20,
 };
 
-const formContainer = {
-  maxWidth: 560,
-  margin: "0 auto 40px",
+const layoutStyle = {
+  display: "flex",
+  gap: 24,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+};
+
+const leftStyle = {
+  width: 420,
   background: "#fff",
   borderRadius: 12,
-  padding: 24,
+  padding: 20,
   boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
 };
 
-const fieldGroup = { marginBottom: 12 };
-
-const labelText = {
-  fontSize: 14,
-  marginBottom: 4,
-  display: "block",
+const rightStyle = {
+  flex: 1,
+  minWidth: 320,
 };
 
 const fieldStyle = {
   width: "100%",
-  boxSizing: "border-box",
-  height: 42,
-  fontSize: 15,
-  padding: "0 10px",
+  height: 40,
   borderRadius: 8,
   border: "1px solid #ccc",
+  padding: "0 10px",
 };
 
 const buttonStyle = {
-  marginTop: 12,
   width: "100%",
-  height: 46,
+  height: 44,
+  marginTop: 12,
   borderRadius: 8,
-  border: "none",
   background: "#16a34a",
   color: "#fff",
-  fontSize: 16,
+  border: "none",
   fontWeight: 600,
   cursor: "pointer",
 };
 
-const listContainer = {
-  maxWidth: 720,
-  margin: "0 auto",
-};
+const roomBlock = { marginBottom: 20 };
 
-const roomBlock = { marginBottom: 28 };
-
-const roomTitleStyle = {
-  fontSize: 18,
-  fontWeight: 600,
-  marginBottom: 8,
-};
+const roomTitleStyle = { fontSize: 16, marginBottom: 6 };
 
 const timelineCardStyle = {
   background: "#fff",
@@ -301,26 +291,22 @@ const timelineCardStyle = {
 const rowStyle = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
-  padding: "10px 14px",
+  padding: "10px 12px",
   borderBottom: "1px solid #eee",
-  fontSize: 15,
+  fontSize: 14,
 };
 
-const purposeStyle = {
-  fontSize: 13,
-  color: "#555",
-};
+const purposeStyle = { fontSize: 12, color: "#555" };
 
 const deleteStyle = {
-  border: "none",
   background: "none",
+  border: "none",
   color: "#dc2626",
   cursor: "pointer",
 };
 
 const emptyStyle = {
-  padding: 14,
-  fontSize: 14,
+  padding: 12,
+  fontSize: 13,
   color: "#999",
 };
