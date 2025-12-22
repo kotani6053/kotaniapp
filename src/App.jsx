@@ -11,6 +11,7 @@ import {
 export default function App() {
   const today = new Date().toISOString().split("T")[0];
 
+  const [date, setDate] = useState(today);
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("");
@@ -19,6 +20,7 @@ export default function App() {
   const [end, setEnd] = useState("09:30");
   const [list, setList] = useState([]);
 
+  /* ===== 30分刻み ===== */
   const times = [];
   for (let h = 8; h <= 18; h++) {
     ["00", "30"].forEach((m) => {
@@ -41,16 +43,18 @@ export default function App() {
     "その他",
   ];
 
+  /* ===== Firestore ===== */
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "reservations"), (snap) => {
       const data = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((r) => r.date === today);
+        .filter((r) => r.date === date);
       setList(data);
     });
     return () => unsub();
-  }, []);
+  }, [date]);
 
+  /* ===== 重複チェック ===== */
   const isOverlapping = () =>
     list.some(
       (r) =>
@@ -63,16 +67,16 @@ export default function App() {
     if (!purpose) return alert("使用目的を入力してください");
     if (start >= end) return alert("時間が正しくありません");
     if (isOverlapping())
-      return alert("同じ時間帯にすでに予約があります");
+      return alert("同じ時間帯に既に予約があります");
 
     await addDoc(collection(db, "reservations"), {
+      date,
       name,
       department,
       purpose,
       room,
       startTime: start,
       endTime: end,
-      date: today,
     });
 
     setName("");
@@ -87,10 +91,20 @@ export default function App() {
 
   return (
     <div style={pageStyle}>
-      <h1 style={titleStyle}>会議室予約（本日）</h1>
+      <h1 style={titleStyle}>会議室予約</h1>
 
+      {/* ===== 入力フォーム ===== */}
       <div style={formContainer}>
-        {/* 全フィールドを同じ幅に統一 */}
+        <FormField label="日付">
+          <input
+            type="date"
+            value={date}
+            min={today}
+            onChange={(e) => setDate(e.target.value)}
+            style={fieldStyle}
+          />
+        </FormField>
+
         <FormField label="名前">
           <input
             value={name}
@@ -160,7 +174,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* 予約一覧 */}
+      {/* ===== 一覧 ===== */}
       <div style={listContainer}>
         {rooms.map((roomName) => (
           <div key={roomName} style={roomBlock}>
@@ -179,7 +193,7 @@ export default function App() {
                         {r.startTime}〜{r.endTime}
                       </strong>{" "}
                       ／ {r.name}（{r.department}）
-                      <div style={{ fontSize: 13, color: "#555" }}>
+                      <div style={purposeStyle}>
                         使用目的：{r.purpose}
                       </div>
                     </div>
@@ -202,7 +216,7 @@ export default function App() {
   );
 }
 
-/* ===== 共通コンポーネント ===== */
+/* ===== 共通 ===== */
 const FormField = ({ label, children }) => (
   <div style={fieldGroup}>
     <label style={labelText}>{label}</label>
@@ -234,9 +248,7 @@ const formContainer = {
   boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
 };
 
-const fieldGroup = {
-  marginBottom: 12,
-};
+const fieldGroup = { marginBottom: 12 };
 
 const labelText = {
   fontSize: 14,
@@ -246,7 +258,7 @@ const labelText = {
 
 const fieldStyle = {
   width: "100%",
-  boxSizing: "border-box", // すべて同じ幅にするため必須 :contentReference[oaicite:2]{index=2}
+  boxSizing: "border-box",
   height: 42,
   fontSize: 15,
   padding: "0 10px",
@@ -272,9 +284,7 @@ const listContainer = {
   margin: "0 auto",
 };
 
-const roomBlock = {
-  marginBottom: 28,
-};
+const roomBlock = { marginBottom: 28 };
 
 const roomTitleStyle = {
   fontSize: 18,
@@ -295,6 +305,11 @@ const rowStyle = {
   padding: "10px 14px",
   borderBottom: "1px solid #eee",
   fontSize: 15,
+};
+
+const purposeStyle = {
+  fontSize: 13,
+  color: "#555",
 };
 
 const deleteStyle = {
