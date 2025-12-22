@@ -83,52 +83,54 @@ export default function App() {
 
   return (
     <div style={pageStyle}>
-      <div style={{ maxWidth: 1550, margin: "0 auto" }}>
-        {/* ヘッダーエリア（一行に集約） */}
-        <div style={headerRow}>
-          <h1 style={titleStyle}>会議室予約</h1>
+      <div style={{ maxWidth: 1580, margin: "0 auto" }}>
+        {/* ヘッダー */}
+        <div style={headerSection}>
+          <h1 style={titleStyle}>会議室予約システム</h1>
           <div style={legendStyle}>
             {Object.entries(deptColors).map(([dept, color]) => (
-              <div key={dept} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 12, height: 12, background: color, borderRadius: 2 }}></div>
-                <span style={{ fontSize: 12 }}>{dept}</span>
+              <div key={dept} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 14, height: 14, background: color, borderRadius: 3 }}></div>
+                <span style={{ fontSize: 13, fontWeight: "bold", color: "#4a5568" }}>{dept}</span>
               </div>
             ))}
           </div>
           <div style={dateNavStyle}>
-            <button onClick={() => changeDate(-1)} style={navBtnStyle}>◀</button>
+            <button onClick={() => changeDate(-1)} style={navBtnStyle}>◀ 前日</button>
             <span style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")}</span>
-            <button onClick={() => changeDate(1)} style={navBtnStyle}>▶</button>
+            <button onClick={() => changeDate(1)} style={navBtnStyle}>翌日 ▶</button>
           </div>
         </div>
 
         <div style={mainLayout}>
-          {/* 左：フォーム（幅を詰め、高さを1画面内に） */}
-          <div style={leftFormStyle}>
-            <FormField label="予約者名"><input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} /></FormField>
-            <FormField label="所属部署">
+          {/* 左：入力フォーム */}
+          <div style={leftStyle}>
+            <h2 style={formTitleStyle}>新規予約</h2>
+            <FormField label="予約者名"><input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="氏名" /></FormField>
+            <FormField label="部署">
               <select value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle}>
                 {departments.map((d) => <option key={d}>{d}</option>)}
               </select>
             </FormField>
-            <FormField label="目的"><input value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle} /></FormField>
+            <FormField label="目的"><input value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle} placeholder="例：課内MTG" /></FormField>
             <FormField label="会議室">
               <select value={room} onChange={(e) => setRoom(e.target.value)} style={fieldStyle}>
                 {rooms.map((r) => <option key={r}>{r}</option>)}
               </select>
             </FormField>
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", gap: 15 }}>
               <FormField label="開始"><select value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle}>{times.map((t) => <option key={t}>{t}</option>)}</select></FormField>
               <FormField label="終了"><select value={end} onChange={(e) => setEnd(e.target.value)} style={fieldStyle}>{times.concat("18:30").map((t) => <option key={t}>{t}</option>)}</select></FormField>
             </div>
-            <button onClick={addReservation} style={buttonStyle}>予約確定</button>
+            <button onClick={addReservation} style={buttonStyle}>予約を確定する</button>
           </div>
 
-          {/* 右上：タイムライン */}
-          <div style={rightDisplayArea}>
-            <div style={timelineContainer}>
+          {/* 右：コンテンツ表示 */}
+          <div style={rightStyle}>
+            {/* タイムライン */}
+            <div style={timelineCard}>
               <div style={timeHeaderRow}>
-                <div style={{ width: 100 }}></div>
+                <div style={{ width: 130 }}></div>
                 <div style={timeLabelsContainer}>
                   {times.filter((_, i) => i % 2 === 0).map((t) => (
                     <div key={t} style={{ ...timeLabelCell, width: `${(60 / TOTAL_MIN) * 100}%` }}>{t}</div>
@@ -150,19 +152,22 @@ export default function App() {
               ))}
             </div>
 
-            {/* 右下：部屋別リスト（横並びで高さを節約） */}
-            <div style={listGrid}>
+            {/* 部屋別の詳細リスト（横並び） */}
+            <div style={listGridArea}>
               {rooms.map(roomName => (
-                <div key={roomName} style={roomListSection}>
-                  <div style={roomListTitle}>{roomName}</div>
-                  <div style={roomListScroll}>
+                <div key={roomName} style={roomListCard}>
+                  <h3 style={roomListTitle}>{roomName}</h3>
+                  <div style={scrollArea}>
                     {list.filter(r => r.room === roomName).map(r => (
-                      <div key={r.id} style={compactListItem}>
-                        <span style={{fontWeight:'bold', fontSize:12}}>{r.startTime}-{r.endTime}</span>
-                        <span style={{fontSize:12, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}> {r.name}</span>
-                        <button onClick={() => removeReservation(r.id)} style={smallDelBtn}>×</button>
+                      <div key={r.id} style={compactItem}>
+                        <div style={{flex:1}}>
+                          <div style={itemTime}>{r.startTime}-{r.endTime}</div>
+                          <div style={itemName}><strong>{r.name}</strong></div>
+                        </div>
+                        <button onClick={() => removeReservation(r.id)} style={delBtn}>削除</button>
                       </div>
                     ))}
+                    {list.filter(r => r.room === roomName).length === 0 && <div style={noData}>予約なし</div>}
                   </div>
                 </div>
               ))}
@@ -174,39 +179,43 @@ export default function App() {
   );
 }
 
+/* スタイル */
 const FormField = ({ label, children }) => (
-  <div style={{ marginBottom: 10 }}><label style={{ fontSize: 12, fontWeight: "bold", display: "block", marginBottom: 3 }}>{label}</label>{children}</div>
+  <div style={{ marginBottom: 15 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 5, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-/* Styles (1画面に収めるための凝縮設定) */
-const pageStyle = { background: "#f0f2f5", height: "100vh", padding: "10px 20px", fontFamily: "sans-serif", overflow: "hidden" };
-const headerRow = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, background: "#fff", padding: "5px 20px", borderRadius: "10px" };
-const titleStyle = { fontSize: 20, fontWeight: "900", margin: 0 };
-const legendStyle = { display: "flex", gap: 15 };
-const dateNavStyle = { display: "flex", alignItems: "center", gap: 10 };
-const dateHeaderStyle = { fontSize: 18, fontWeight: "bold" };
-const navBtnStyle = { padding: "4px 10px", cursor: "pointer", borderRadius: "4px", border: "1px solid #ccc" };
+const pageStyle = { background: "#f1f5f9", height: "100vh", padding: "20px", fontFamily: "sans-serif", overflow: "hidden" };
+const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "12px 25px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
+const titleStyle = { fontSize: 24, fontWeight: "900", margin: 0, color: "#1e293b" };
+const legendStyle = { display: "flex", gap: 20 };
+const dateNavStyle = { display: "flex", alignItems: "center", gap: 15 };
+const dateHeaderStyle = { fontSize: 20, fontWeight: "bold", color: "#1e293b" };
+const navBtnStyle = { padding: "8px 16px", cursor: "pointer", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#fff", fontWeight: "bold", fontSize: "13px" };
 
-const mainLayout = { display: "flex", gap: 15, height: "calc(100vh - 70px)" };
-const leftFormStyle = { width: 260, background: "#fff", padding: "20px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", height: "fit-content" };
-const fieldStyle = { width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ddd", fontSize: "14px" };
-const buttonStyle = { width: "100%", padding: "12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", marginTop: "10px", cursor: "pointer" };
+const mainLayout = { display: "flex", gap: 20, height: "calc(100vh - 100px)" };
+const leftStyle = { width: 320, background: "#fff", padding: "25px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", height: "fit-content" };
+const formTitleStyle = { fontSize: 18, marginBottom: 20, borderBottom: "2px solid #f1f5f9", paddingBottom: 10, fontWeight: "bold" };
+const fieldStyle = { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "15px" };
+const buttonStyle = { width: "100%", padding: "15px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "10px", fontWeight: "bold", fontSize: "16px", cursor: "pointer", marginTop: "10px", boxShadow: "0 4px 12px rgba(37,99,235,0.2)" };
 
-const rightDisplayArea = { flex: 1, display: "flex", flexDirection: "column", gap: 10, height: "100%" };
-const timelineContainer = { background: "#fff", padding: "15px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
-const timeHeaderRow = { display: "flex", marginBottom: 5 };
+const rightStyle = { flex: 1, display: "flex", flexDirection: "column", gap: 20, height: "100%" };
+const timelineCard = { background: "#fff", padding: "25px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)" };
+const timeHeaderRow = { display: "flex", marginBottom: 15 };
 const timeLabelsContainer = { display: "flex", flex: 1, position: "relative" };
-const timeLabelCell = { fontSize: 11, color: "#718096" };
-const roomRow = { display: "flex", alignItems: "center", marginBottom: 8 };
-const roomLabel = { width: 100, fontSize: 13, fontWeight: "bold" };
-const timelineTrack = { position: "relative", flex: 1, height: 36, background: "#f8fafc", borderRadius: "6px", border: "1px solid #eee", overflow: "hidden" };
-const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1, background: "#eee" };
-const barStyle = { position: "absolute", top: 4, bottom: 4, borderRadius: "4px", color: "#fff", display: "flex", alignItems: "center", padding: "0 8px", fontSize: "11px", zIndex: 2 };
+const timeLabelCell = { fontSize: 12, color: "#64748b", fontWeight: "bold" };
+const roomRow = { display: "flex", alignItems: "center", marginBottom: 15 };
+const roomLabel = { width: 130, fontSize: 15, fontWeight: "bold", color: "#334155" };
+const timelineTrack = { position: "relative", flex: 1, height: 45, background: "#f8fafc", borderRadius: "10px", border: "1px solid #f1f5f9", overflow: "hidden" };
+const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1, background: "#f1f5f9" };
+const barStyle = { position: "absolute", top: 6, bottom: 6, borderRadius: "6px", color: "#fff", display: "flex", alignItems: "center", padding: "0 12px", fontSize: "12px", zIndex: 2, boxShadow: "0 2px 5px rgba(0,0,0,0.1)" };
 const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 
-const listGrid = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, flex: 1, overflow: "hidden" };
-const roomListSection = { background: "#fff", borderRadius: "10px", padding: "10px", display: "flex", flexDirection: "column", border: "1px solid #e0e0e0" };
-const roomListTitle = { fontSize: 14, fontWeight: "bold", borderBottom: "2px solid #f0f0f0", marginBottom: 8, paddingBottom: 4 };
-const roomListScroll = { flex: 1, overflowY: "auto" };
-const compactListItem = { display: "flex", alignItems: "center", background: "#f9f9f9", padding: "4px 8px", borderRadius: "4px", marginBottom: 4, gap: 5 };
-const smallDelBtn = { background: "none", border: "none", color: "#cc0000", cursor: "pointer", fontWeight: "bold", fontSize: "14px" };
+const listGridArea = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 15, flex: 1, overflow: "hidden", paddingBottom: "10px" };
+const roomListCard = { background: "#fff", borderRadius: "15px", padding: "15px", display: "flex", flexDirection: "column", boxShadow: "0 4px 15px rgba(0,0,0,0.03)" };
+const roomListTitle = { fontSize: 16, fontWeight: "bold", color: "#1e293b", marginBottom: 12, borderLeft: "4px solid #1e293b", paddingLeft: 10 };
+const scrollArea = { flex: 1, overflowY: "auto" };
+const compactItem = { display: "flex", alignItems: "center", background: "#f8fafc", padding: "10px", borderRadius: "8px", marginBottom: 8, border: "1px solid #f1f5f9" };
+const itemTime = { fontSize: "11px", color: "#64748b", fontWeight: "bold" };
+const itemName = { fontSize: "14px", color: "#1e293b" };
+const delBtn = { marginLeft: 10, background: "#fee2e2", color: "#ef4444", border: "none", padding: "4px 8px", borderRadius: "5px", cursor: "pointer", fontSize: "11px", fontWeight: "bold" };
+const noData = { textAlign: "center", fontSize: "12px", color: "#94a3b8", marginTop: "10px" };
