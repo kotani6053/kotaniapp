@@ -20,6 +20,7 @@ export default function App() {
   const [end, setEnd] = useState("09:30");
   const [list, setList] = useState([]);
 
+  /* ===== 30分刻み ===== */
   const times = [];
   for (let h = 8; h <= 18; h++) {
     ["00", "30"].forEach((m) => {
@@ -42,6 +43,7 @@ export default function App() {
     "その他",
   ];
 
+  /* ===== Firestore ===== */
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "reservations"), (snap) => {
       const data = snap.docs
@@ -52,6 +54,7 @@ export default function App() {
     return () => unsub();
   }, [date]);
 
+  /* ===== 重複チェック ===== */
   const isOverlapping = () =>
     list.some(
       (r) =>
@@ -60,9 +63,18 @@ export default function App() {
     );
 
   const addReservation = async () => {
-    if (!name || !purpose) return alert("未入力項目があります");
-    if (start >= end) return alert("時間が正しくありません");
-    if (isOverlapping()) return alert("時間が重複しています");
+    if (!name || !purpose) {
+      alert("未入力の項目があります");
+      return;
+    }
+    if (start >= end) {
+      alert("時間が正しくありません");
+      return;
+    }
+    if (isOverlapping()) {
+      alert("同じ時間帯に既に予約があります");
+      return;
+    }
 
     await addDoc(collection(db, "reservations"), {
       date,
@@ -90,7 +102,7 @@ export default function App() {
 
       {/* ===== 左右レイアウト ===== */}
       <div style={layoutStyle}>
-        {/* 左：入力 */}
+        {/* ===== 左：入力（広め） ===== */}
         <div style={leftStyle}>
           <FormField label="日付">
             <input
@@ -171,8 +183,20 @@ export default function App() {
           </button>
         </div>
 
-        {/* 右：予約一覧 */}
+        {/* ===== 右：予約一覧 ===== */}
         <div style={rightStyle}>
+          {/* 日付表示 */}
+          <div style={dateHeaderStyle}>
+            📅{" "}
+            {new Date(date).toLocaleDateString("ja-JP", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              weekday: "short",
+            })}{" "}
+            の予約
+          </div>
+
           {rooms.map((roomName) => (
             <div key={roomName} style={roomBlock}>
               <h2 style={roomTitleStyle}>{roomName}</h2>
@@ -216,7 +240,7 @@ export default function App() {
 
 /* ===== 共通 ===== */
 const FormField = ({ label, children }) => (
-  <div style={{ marginBottom: 12 }}>
+  <div style={{ marginBottom: 14 }}>
     <label style={{ fontSize: 13, marginBottom: 4, display: "block" }}>
       {label}
     </label>
@@ -245,22 +269,29 @@ const layoutStyle = {
   flexWrap: "wrap",
 };
 
+/* ★ 左を広く */
 const leftStyle = {
-  width: 420,
+  flex: "0 0 520px",
   background: "#fff",
   borderRadius: 12,
-  padding: 20,
+  padding: 24,
   boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
 };
 
 const rightStyle = {
   flex: 1,
-  minWidth: 320,
+  minWidth: 360,
+};
+
+const dateHeaderStyle = {
+  fontSize: 16,
+  fontWeight: 600,
+  marginBottom: 16,
 };
 
 const fieldStyle = {
   width: "100%",
-  height: 40,
+  height: 42,
   borderRadius: 8,
   border: "1px solid #ccc",
   padding: "0 10px",
@@ -268,8 +299,8 @@ const fieldStyle = {
 
 const buttonStyle = {
   width: "100%",
-  height: 44,
-  marginTop: 12,
+  height: 46,
+  marginTop: 16,
   borderRadius: 8,
   background: "#16a34a",
   color: "#fff",
