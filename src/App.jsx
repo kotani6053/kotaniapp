@@ -107,7 +107,7 @@ export default function App() {
           <div style={leftStyle}>
             <h2 style={formTitleStyle}>新規予約登録</h2>
             <FormField label="日付選択">
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+              <input type="date" value={date} min={todayStr} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
             </FormField>
             <FormField label="予約者名">
               <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="氏名" />
@@ -167,7 +167,7 @@ export default function App() {
               ))}
             </div>
 
-            {/* 部屋別の詳細リスト（横並び・目的表示） */}
+            {/* 部屋別の詳細リスト */}
             <div style={listGridArea}>
               {rooms.map(roomName => (
                 <div key={roomName} style={roomListCard}>
@@ -183,7 +183,7 @@ export default function App() {
                           <div style={itemName}><strong>{r.name}</strong></div>
                           <div style={itemPurpose}>{r.purpose}</div>
                         </div>
-                        <button onClick={() => removeReservation(r.id)} style={delBtn}>削除</button>
+                        <button onClick={() => removeReservation(r.id)} style={delBtn}>×</button>
                       </div>
                     ))}
                     {list.filter(r => r.room === roomName).length === 0 && <div style={noData}>予約なし</div>}
@@ -215,7 +215,10 @@ const navBtnStyle = { padding: "6px 14px", cursor: "pointer", borderRadius: "8px
 const mainLayout = { display: "flex", gap: 20, height: "calc(100vh - 90px)" };
 const leftStyle = { width: 300, background: "#fff", padding: "20px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", height: "fit-content" };
 const formTitleStyle = { fontSize: 17, marginBottom: 15, borderBottom: "2px solid #f1f5f9", paddingBottom: 8, fontWeight: "bold" };
-const fieldStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px", outline: "none" };
+
+/* 幅を完全に揃えるためのスタイル設定 */
+const fieldStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px", outline: "none", boxSizing: "border-box" };
+
 const buttonStyle = { width: "100%", padding: "14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "10px", fontWeight: "bold", fontSize: "16px", cursor: "pointer", marginTop: "10px" };
 
 const rightStyle = { flex: 1, display: "flex", flexDirection: "column", gap: 15, height: "100%" };
@@ -240,5 +243,5 @@ const itemTime = { fontSize: "11px", color: "#1e293b", fontWeight: "bold" };
 const itemDeptBadge = { color: "#fff", fontSize: "9px", width: "14px", height: "14px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "3px", fontWeight: "bold" };
 const itemName = { fontSize: "13px", color: "#1e293b", marginBottom: 1 };
 const itemPurpose = { fontSize: "11px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const delBtn = { marginLeft: 5, background: "none", color: "#ef4444", border: "none", padding: "2px 5px", cursor: "pointer", fontSize: "16px", fontWeight: "bold" };
+const delBtn = { marginLeft: 5, background: "none", color: "#ef4444", border: "none", padding: "2px 5px", cursor: "pointer", fontSize: "18px", fontWeight: "bold" };
 const noData = { textAlign: "center", fontSize: "11px", color: "#94a3b8", marginTop: "10px" };
