@@ -42,9 +42,23 @@ export default function App() {
     });
   }, []);
 
+  /* ===== 重複チェック ===== */
+  const isOverlapping = () => {
+    return list.some(
+      (r) =>
+        r.room === room &&
+        !(end <= r.startTime || start >= r.endTime)
+    );
+  };
+
+  /* ===== 追加 ===== */
   const addReservation = async () => {
     if (!name) return alert("名前を入力してください");
     if (start >= end) return alert("時間が正しくありません");
+
+    if (isOverlapping()) {
+      return alert("同じ時間帯にすでに予約があります");
+    }
 
     await addDoc(collection(db, "reservations"), {
       name,
@@ -57,6 +71,14 @@ export default function App() {
     setName("");
   };
 
+  /* ===== 削除（再確認あり） ===== */
+  const removeReservation = async (id) => {
+    const ok = window.confirm("この予約を削除してもよろしいですか？");
+    if (!ok) return;
+
+    await deleteDoc(doc(db, "reservations", id));
+  };
+
   return (
     <div
       style={{
@@ -66,7 +88,6 @@ export default function App() {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      {/* ===== タイトル ===== */}
       <h1
         style={{
           textAlign: "center",
@@ -78,7 +99,7 @@ export default function App() {
         会議室予約（本日）
       </h1>
 
-      {/* ===== 入力カード ===== */}
+      {/* ===== 入力 ===== */}
       <div
         style={{
           maxWidth: 560,
@@ -151,13 +172,7 @@ export default function App() {
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
         {rooms.map((roomName) => (
           <div key={roomName} style={{ marginBottom: 28 }}>
-            <h2
-              style={{
-                fontSize: 18,
-                fontWeight: 600,
-                marginBottom: 8,
-              }}
-            >
+            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
               {roomName}
             </h2>
 
@@ -181,8 +196,7 @@ export default function App() {
                       justifyContent: "space-between",
                       alignItems: "center",
                       padding: "10px 14px",
-                      borderBottom:
-                        "1px solid #eee",
+                      borderBottom: "1px solid #eee",
                       fontSize: 15,
                     }}
                   >
@@ -191,11 +205,7 @@ export default function App() {
                       <strong>{r.name}</strong>
                     </span>
                     <button
-                      onClick={() =>
-                        deleteDoc(
-                          doc(db, "reservations", r.id)
-                        )
-                      }
+                      onClick={() => removeReservation(r.id)}
                       style={{
                         border: "none",
                         background: "none",
@@ -208,8 +218,7 @@ export default function App() {
                   </div>
                 ))}
 
-              {list.filter((r) => r.room === roomName)
-                .length === 0 && (
+              {list.filter((r) => r.room === roomName).length === 0 && (
                 <div
                   style={{
                     padding: 14,
@@ -228,7 +237,6 @@ export default function App() {
   );
 }
 
-/* ===== 共通入力スタイル ===== */
 const inputStyle = {
   width: "100%",
   height: 42,
