@@ -56,7 +56,6 @@ export default function App() {
     setName("");
   };
 
-  /* ===== 部屋別 ===== */
   const rooms = [
     "1階食堂",
     "2階会議室①",
@@ -65,20 +64,22 @@ export default function App() {
   ];
 
   return (
-    <div style={{ padding: "30px", fontFamily: "sans-serif" }}>
-      <h1 style={{ fontSize: "48px" }}>会議室予約（本日）</h1>
+    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
+      <h1 style={{ fontSize: 28, marginBottom: 16 }}>
+        会議室予約（本日）
+      </h1>
 
       {/* ===== 入力 ===== */}
-      <div style={{ marginTop: "20px" }}>
+      <div style={{ marginBottom: 24 }}>
         <input
           placeholder="名前"
           value={name}
           onChange={(e) => setName(e.target.value)}
           style={{
             width: "100%",
-            height: "80px",
-            fontSize: "32px",
-            marginBottom: "10px",
+            height: 44,
+            fontSize: 18,
+            marginBottom: 8,
           }}
         />
 
@@ -87,9 +88,9 @@ export default function App() {
           onChange={(e) => setRoom(e.target.value)}
           style={{
             width: "100%",
-            height: "80px",
-            fontSize: "32px",
-            marginBottom: "10px",
+            height: 44,
+            fontSize: 18,
+            marginBottom: 8,
           }}
         >
           {rooms.map((r) => (
@@ -97,11 +98,11 @@ export default function App() {
           ))}
         </select>
 
-        <div style={{ display: "flex", gap: "10px" }}>
+        <div style={{ display: "flex", gap: 8 }}>
           <select
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            style={{ flex: 1, height: "80px", fontSize: "32px" }}
+            style={{ flex: 1, height: 44, fontSize: 18 }}
           >
             {times.map((t) => (
               <option key={t}>{t}</option>
@@ -111,7 +112,7 @@ export default function App() {
           <select
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            style={{ flex: 1, height: "80px", fontSize: "32px" }}
+            style={{ flex: 1, height: 44, fontSize: 18 }}
           >
             {times.map((t) => (
               <option key={t}>{t}</option>
@@ -122,56 +123,54 @@ export default function App() {
         <button
           onClick={addReservation}
           style={{
-            marginTop: "10px",
+            marginTop: 10,
             width: "100%",
-            height: "90px",
-            fontSize: "36px",
+            height: 48,
+            fontSize: 20,
           }}
         >
           予約する
         </button>
       </div>
 
-      {/* ===== タイムライン ===== */}
-      <div style={{ marginTop: "30px" }}>
-        {rooms.map((roomName) => (
-          <div key={roomName} style={{ marginBottom: "20px" }}>
-            <h2 style={{ fontSize: "36px" }}>{roomName}</h2>
+      {/* ===== 一覧 ===== */}
+      {rooms.map((roomName) => (
+        <div key={roomName} style={{ marginBottom: 20 }}>
+          <h2 style={{ fontSize: 22, marginBottom: 6 }}>
+            {roomName}
+          </h2>
 
-            {list
-              .filter((r) => r.room === roomName)
-              .sort((a, b) =>
-                a.startTime.localeCompare(b.startTime)
-              )
-              .map((r) => (
-                <div
-                  key={r.id}
+          {list
+            .filter((r) => r.room === roomName)
+            .sort((a, b) =>
+              a.startTime.localeCompare(b.startTime)
+            )
+            .map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  fontSize: 16,
+                  padding: "6px 0",
+                  borderBottom: "1px solid #ddd",
+                }}
+              >
+                {r.startTime}〜{r.endTime} ／ {r.name}
+                <button
+                  onClick={() =>
+                    deleteDoc(doc(db, "reservations", r.id))
+                  }
                   style={{
-                    fontSize: "28px",
-                    padding: "10px",
-                    borderBottom: "1px solid #ccc",
+                    marginLeft: 8,
+                    fontSize: 14,
+                    color: "red",
                   }}
                 >
-                  {r.startTime}〜{r.endTime} ／ {r.name}
-                  <button
-                    onClick={() =>
-                      deleteDoc(
-                        doc(db, "reservations", r.id)
-                      )
-                    }
-                    style={{
-                      marginLeft: "10px",
-                      fontSize: "24px",
-                      color: "red",
-                    }}
-                  >
-                    削除
-                  </button>
-                </div>
-              ))}
-          </div>
-        ))}
-      </div>
+                  削除
+                </button>
+              </div>
+            ))}
+        </div>
+      ))}
     </div>
   );
 }
