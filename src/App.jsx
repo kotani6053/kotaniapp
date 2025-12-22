@@ -20,7 +20,7 @@ export default function App() {
   const [end, setEnd] = useState("09:30");
   const [list, setList] = useState([]);
 
-  /* ===== 時刻 ===== */
+  /* ===== 30分刻み ===== */
   const times = [];
   for (let h = 8; h <= 18; h++) {
     ["00", "30"].forEach((m) => {
@@ -42,6 +42,15 @@ export default function App() {
     "役員",
     "その他",
   ];
+
+  /* ===== 所属ごとの色 ===== */
+  const deptColors = {
+    新門司製造部: "#3b82f6",
+    新門司セラミック: "#10b981",
+    総務部: "#f59e0b",
+    役員: "#8b5cf6",
+    その他: "#6b7280",
+  };
 
   /* ===== Firestore ===== */
   useEffect(() => {
@@ -143,11 +152,13 @@ export default function App() {
             </select>
           </FormField>
 
-          <FormField label="使用目的">
+          {/* ★ 文言変更ここ */}
+          <FormField label="使用目的・参加者">
             <input
               value={purpose}
               onChange={(e) => setPurpose(e.target.value)}
               style={fieldStyle}
+              placeholder="例：定例MTG（営業3名・製造2名）"
             />
           </FormField>
 
@@ -211,9 +222,9 @@ export default function App() {
                         <strong>
                           {r.startTime}〜{r.endTime}
                         </strong>{" "}
-                        ／ {r.name}
+                        ／ {r.name}（{r.department}）
                         <div style={purposeStyle}>
-                          使用目的：{r.purpose}
+                          {r.purpose}
                         </div>
                       </div>
                       <button
@@ -224,22 +235,17 @@ export default function App() {
                       </button>
                     </div>
                   ))}
-                {list.filter((r) => r.room === roomName).length === 0 && (
-                  <div style={emptyStyle}>予約なし</div>
-                )}
               </div>
             </div>
           ))}
 
-          {/* ===== 追加：部屋別タイムライン ===== */}
+          {/* ===== タイムライン ===== */}
           <div style={timelineWrapper}>
             <h2 style={{ marginBottom: 12 }}>🕒 タイムライン</h2>
 
             <div style={timeHeader}>
               {times.map((t) => (
-                <div key={t} style={timeCell}>
-                  {t}
-                </div>
+                <div key={t} style={timeCell}>{t}</div>
               ))}
             </div>
 
@@ -264,6 +270,8 @@ export default function App() {
                             ...barStyle,
                             left: `${left}%`,
                             width: `${width}%`,
+                            background:
+                              deptColors[r.department] || "#60a5fa",
                           }}
                         >
                           {r.purpose}
@@ -293,7 +301,7 @@ const FormField = ({ label, children }) => (
 /* ===== style ===== */
 const pageStyle = { background: "#f5f6f8", minHeight: "100vh", padding: 24 };
 const titleStyle = { textAlign: "center", fontSize: 24, marginBottom: 20 };
-const layoutStyle = { display: "flex", gap: 24, alignItems: "flex-start" };
+const layoutStyle = { display: "flex", gap: 24 };
 const leftStyle = {
   flex: "0 0 520px",
   background: "#fff",
@@ -316,7 +324,6 @@ const timelineCardStyle = { background: "#fff", borderRadius: 10 };
 const rowStyle = { display: "flex", justifyContent: "space-between", padding: 10 };
 const purposeStyle = { fontSize: 12 };
 const deleteStyle = { background: "none", border: "none", color: "#dc2626" };
-const emptyStyle = { padding: 12, color: "#999" };
 
 /* ===== タイムライン ===== */
 const timelineWrapper = {
@@ -327,13 +334,7 @@ const timelineWrapper = {
 };
 
 const timeHeader = { display: "flex", marginLeft: 120 };
-const timeCell = {
-  flex: 1,
-  fontSize: 10,
-  textAlign: "center",
-  color: "#666",
-};
-
+const timeCell = { flex: 1, fontSize: 10, textAlign: "center" };
 const timelineRow = { display: "flex", marginBottom: 14 };
 const roomLabel = { width: 120, fontSize: 13 };
 const timelineLine = {
@@ -343,12 +344,10 @@ const timelineLine = {
   background: "#f1f5f9",
   borderRadius: 6,
 };
-
 const barStyle = {
   position: "absolute",
   top: 4,
   height: 24,
-  background: "#60a5fa",
   color: "#fff",
   fontSize: 11,
   padding: "0 6px",
