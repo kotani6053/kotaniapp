@@ -42,7 +42,6 @@ export default function App() {
     "その他",
   ];
 
-  /* ===== Firestore ===== */
   useEffect(() => {
     return onSnapshot(collection(db, "reservations"), (snap) => {
       const data = snap.docs
@@ -52,7 +51,6 @@ export default function App() {
     });
   }, []);
 
-  /* ===== 重複チェック ===== */
   const isOverlapping = () => {
     return list.some(
       (r) =>
@@ -61,15 +59,12 @@ export default function App() {
     );
   };
 
-  /* ===== 追加 ===== */
   const addReservation = async () => {
     if (!name) return alert("名前を入力してください");
     if (!purpose) return alert("使用目的を入力してください");
     if (start >= end) return alert("時間が正しくありません");
-
-    if (isOverlapping()) {
+    if (isOverlapping())
       return alert("同じ時間帯にすでに予約があります");
-    }
 
     await addDoc(collection(db, "reservations"), {
       name,
@@ -85,10 +80,9 @@ export default function App() {
     setPurpose("");
   };
 
-  /* ===== 削除（再確認） ===== */
   const removeReservation = async (id) => {
-    const ok = window.confirm("この予約を削除してもよろしいですか？");
-    if (!ok) return;
+    if (!window.confirm("この予約を削除してもよろしいですか？"))
+      return;
     await deleteDoc(doc(db, "reservations", id));
   };
 
@@ -132,34 +126,33 @@ export default function App() {
           ))}
         </select>
 
-        <div style={{ display: "flex", gap: 12 }}>
-          <select
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            style={inputStyle}
-          >
-            {times.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
+        {/* ★ 時間も1列に統一 */}
+        <select
+          value={start}
+          onChange={(e) => setStart(e.target.value)}
+          style={inputStyle}
+        >
+          {times.map((t) => (
+            <option key={t}>開始：{t}</option>
+          ))}
+        </select>
 
-          <select
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            style={inputStyle}
-          >
-            {times.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={end}
+          onChange={(e) => setEnd(e.target.value)}
+          style={inputStyle}
+        >
+          {times.map((t) => (
+            <option key={t}>終了：{t}</option>
+          ))}
+        </select>
 
         <button onClick={addReservation} style={buttonStyle}>
           予約する
         </button>
       </div>
 
-      {/* ===== タイムライン ===== */}
+      {/* ===== 一覧 ===== */}
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
         {rooms.map((roomName) => (
           <div key={roomName} style={{ marginBottom: 28 }}>
