@@ -1,343 +1,310 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { collection, addDoc, deleteDoc, onSnapshot, doc } from "firebase/firestore";
 import { db } from "./firebase";
-import {
-  collection,
-  addDoc,
-  deleteDoc,
-  onSnapshot,
-  doc,
-} from "firebase/firestore";
 
-export default function App() {
+function App() {
+  /* =====================
+     共通スタイル（幅ズレ完全防止）
+  ====================== */
+  const fieldStyle = {
+    width: "100%",
+    height: "42px",
+    borderRadius: "8px",
+    border: "1px solid #d1d5db",
+    padding: "0 12px",
+    boxSizing: "border-box",
+    fontSize: "14px",
+    backgroundColor: "#fff",
+  };
+
+  /* =====================
+     state
+  ====================== */
   const today = new Date().toISOString().split("T")[0];
 
-  const [date, setDate] = useState(today);
-  const [name, setName] = useState("");
-  const [department, setDepartment] = useState("新門司製造部");
-  const [purpose, setPurpose] = useState("");
-  const [room, setRoom] = useState("1階食堂");
-  const [start, setStart] = useState("09:00");
-  const [end, setEnd] = useState("09:30");
-  const [list, setList] = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  /* ===== 30分刻み ===== */
-  const times = [];
+  const [formData, setFormData] = useState({
+    name: "",
+    department: "新門司製造部",
+    purpose: "",
+    room: "1階食堂",
+    date: today,
+    startTime: "09:00",
+    endTime: "09:30",
+  });
+
+  /* =====================
+     30分刻み時間
+  ====================== */
+  const timeOptions = [];
   for (let h = 8; h <= 18; h++) {
     ["00", "30"].forEach((m) => {
-      times.push(`${String(h).padStart(2, "0")}:${m}`);
+      const t = `${String(h).padStart(2, "0")}:${m}`;
+      if (t >= "08:30" && t <= "18:00") timeOptions.push(t);
     });
   }
 
-  const rooms = [
-    "1階食堂",
-    "2階会議室①",
-    "2階会議室②",
-    "3階応接室",
-  ];
-
-  const departments = [
-    "新門司製造部",
-    "新門司セラミック",
-    "総務部",
-    "役員",
-    "その他",
-  ];
-
-  /* ===== Firestore ===== */
+  /* =====================
+     Firestore取得
+  ====================== */
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "reservations"), (snap) => {
-      const data = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((r) => r.date === date);
-      setList(data);
+      setReservations(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsub();
-  }, [date]);
+  }, []);
 
-  /* ===== 重複チェック ===== */
-  const isOverlapping = () =>
-    list.some(
-      (r) =>
-        r.room === room &&
-        !(end <= r.startTime || start >= r.endTime)
-    );
-
-  const addReservation = async () => {
-    if (!name || !purpose) {
-      alert("未入力の項目があります");
-      return;
-    }
-    if (start >= end) {
-      alert("時間が正しくありません");
-      return;
-    }
-    if (isOverlapping()) {
-      alert("同じ時間帯に既に予約があります");
-      return;
-    }
-
-    await addDoc(collection(db, "reservations"), {
-      date,
-      name,
-      department,
-      purpose,
-      room,
-      startTime: start,
-      endTime: end,
-    });
-
-    setName("");
-    setPurpose("");
+  /* =====================
+     入力変更
+  ====================== */
+  const handleChange = (e) => {
+    setErrorMessage("");
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const removeReservation = async (id) => {
-    if (!window.confirm("この予約を削除してもよろしいですか？"))
+  /* =====================
+     重複チェック（同日・同部屋）
+  ====================== */
+  const isOverlapping = () => {
+    return reservations.some(
+      (r) =>
+        r.date === formData.date &&
+        r.room === formData.room &&
+        !(formData.endTime <= r.startTime || formData.startTime >= r.endTime)
+    );
+  };
+
+  /* =====================
+     登録
+  ====================== */
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (formData.startTime >= formData.endTime) {
+      setErrorMessage("終了時間は開始時間より後にしてください");
       return;
+    }
+
+    if (isOverlapping()) {
+      setErrorMessage("同じ時間帯にすでに予約があります");
+      return;
+    }
+
+    await addDoc(collection(db, "reservations"), formData);
+
+    setFormData({
+      name: "",
+      department: "新門司製造部",
+      purpose: "",
+      room: "1階食堂",
+      date: formData.date,
+      startTime: "09:00",
+      endTime: "09:30",
+    });
+  };
+
+  /* =====================
+     削除（再確認）
+  ====================== */
+  const handleDelete = async (id) => {
+    if (!window.confirm("この予約を削除してもよいですか？")) return;
     await deleteDoc(doc(db, "reservations", id));
   };
 
-  return (
-    <div style={pageStyle}>
-      <h1 style={titleStyle}>会議室予約</h1>
+  /* =====================
+     表示用（選択日）
+  ====================== */
+  const dayReservations = reservations
+    .filter((r) => r.date === formData.date)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-      {/* ===== 左右レイアウト ===== */}
-      <div style={layoutStyle}>
-        {/* ===== 左：入力（広め） ===== */}
-        <div style={leftStyle}>
-          <FormField label="日付">
+  return (
+    <div style={{ padding: 32, background: "#f9fafb", minHeight: "100vh" }}>
+      <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 24 }}>
+        KOTANI 会議室予約
+      </h1>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.4fr 1fr",
+          gap: 32,
+          alignItems: "flex-start",
+        }}
+      >
+        {/* ================= 入力 ================= */}
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            background: "#fff",
+            padding: 24,
+            borderRadius: 12,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+          }}
+        >
+          <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 16 }}>
+            予約入力
+          </h2>
+
+          {errorMessage && (
+            <div style={{ color: "#dc2626", marginBottom: 12 }}>
+              {errorMessage}
+            </div>
+          )}
+
+          <div style={{ display: "grid", gap: 12 }}>
+            <input
+              name="name"
+              placeholder="名前"
+              value={formData.name}
+              onChange={handleChange}
+              style={fieldStyle}
+              required
+            />
+
+            <select
+              name="department"
+              value={formData.department}
+              onChange={handleChange}
+              style={fieldStyle}
+            >
+              <option>新門司製造部</option>
+              <option>新門司セラミック</option>
+              <option>総務部</option>
+              <option>役員</option>
+              <option>その他</option>
+            </select>
+
+            <input
+              name="purpose"
+              placeholder="使用目的"
+              value={formData.purpose}
+              onChange={handleChange}
+              style={fieldStyle}
+              required
+            />
+
+            <select
+              name="room"
+              value={formData.room}
+              onChange={handleChange}
+              style={fieldStyle}
+            >
+              <option>1階食堂</option>
+              <option>2階会議室①</option>
+              <option>2階会議室②</option>
+              <option>3階応接室</option>
+            </select>
+
             <input
               type="date"
-              value={date}
-              min={today}
-              onChange={(e) => setDate(e.target.value)}
+              name="date"
+              value={formData.date}
+              onChange={handleChange}
               style={fieldStyle}
             />
-          </FormField>
 
-          <FormField label="名前">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={fieldStyle}
-            />
-          </FormField>
+            <div style={{ display: "flex", gap: 8 }}>
+              <select
+                name="startTime"
+                value={formData.startTime}
+                onChange={handleChange}
+                style={fieldStyle}
+              >
+                {timeOptions.map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </select>
 
-          <FormField label="所属">
-            <select
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              style={fieldStyle}
-            >
-              {departments.map((d) => (
-                <option key={d}>{d}</option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="使用目的">
-            <input
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              style={fieldStyle}
-            />
-          </FormField>
-
-          <FormField label="部屋">
-            <select
-              value={room}
-              onChange={(e) => setRoom(e.target.value)}
-              style={fieldStyle}
-            >
-              {rooms.map((r) => (
-                <option key={r}>{r}</option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="開始時間">
-            <select
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-              style={fieldStyle}
-            >
-              {times.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="終了時間">
-            <select
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-              style={fieldStyle}
-            >
-              {times.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
-          </FormField>
-
-          <button onClick={addReservation} style={buttonStyle}>
-            予約する
-          </button>
-        </div>
-
-        {/* ===== 右：予約一覧 ===== */}
-        <div style={rightStyle}>
-          {/* 日付表示 */}
-          <div style={dateHeaderStyle}>
-            📅{" "}
-            {new Date(date).toLocaleDateString("ja-JP", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-              weekday: "short",
-            })}{" "}
-            の予約
-          </div>
-
-          {rooms.map((roomName) => (
-            <div key={roomName} style={roomBlock}>
-              <h2 style={roomTitleStyle}>{roomName}</h2>
-
-              <div style={timelineCardStyle}>
-                {list
-                  .filter((r) => r.room === roomName)
-                  .sort((a, b) =>
-                    a.startTime.localeCompare(b.startTime)
-                  )
-                  .map((r) => (
-                    <div key={r.id} style={rowStyle}>
-                      <div>
-                        <strong>
-                          {r.startTime}〜{r.endTime}
-                        </strong>{" "}
-                        ／ {r.name}（{r.department}）
-                        <div style={purposeStyle}>
-                          使用目的：{r.purpose}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeReservation(r.id)}
-                        style={deleteStyle}
-                      >
-                        削除
-                      </button>
-                    </div>
-                  ))}
-                {list.filter((r) => r.room === roomName).length === 0 && (
-                  <div style={emptyStyle}>予約なし</div>
-                )}
-              </div>
+              <select
+                name="endTime"
+                value={formData.endTime}
+                onChange={handleChange}
+                style={fieldStyle}
+              >
+                {timeOptions.map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </select>
             </div>
-          ))}
+
+            <button
+              type="submit"
+              style={{
+                marginTop: 8,
+                background: "#16a34a",
+                color: "#fff",
+                borderRadius: 10,
+                padding: "12px 0",
+                fontSize: 18,
+                fontWeight: 700,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              予約する
+            </button>
+          </div>
+        </form>
+
+        {/* ================= 一覧 ================= */}
+        <div
+          style={{
+            background: "#fff",
+            padding: 24,
+            borderRadius: 12,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+          }}
+        >
+          <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>
+            {formData.date} の予約
+          </h2>
+
+          {dayReservations.length === 0 && (
+            <div style={{ color: "#6b7280" }}>予約はありません</div>
+          )}
+
+          <div style={{ display: "grid", gap: 10 }}>
+            {dayReservations.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  padding: 12,
+                  borderRadius: 8,
+                  background: "#f3f4f6",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600 }}>
+                    {r.startTime} – {r.endTime} / {r.room}
+                  </div>
+                  <div style={{ fontSize: 13, color: "#374151" }}>
+                    {r.name}（{r.department}） / {r.purpose}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDelete(r.id)}
+                  style={{
+                    color: "#dc2626",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  削除
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ===== 共通 ===== */
-const FormField = ({ label, children }) => (
-  <div style={{ marginBottom: 14 }}>
-    <label style={{ fontSize: 13, marginBottom: 4, display: "block" }}>
-      {label}
-    </label>
-    {children}
-  </div>
-);
-
-/* ===== style ===== */
-const pageStyle = {
-  background: "#f5f6f8",
-  minHeight: "100vh",
-  padding: 24,
-  fontFamily: "system-ui, sans-serif",
-};
-
-const titleStyle = {
-  textAlign: "center",
-  fontSize: 24,
-  marginBottom: 20,
-};
-
-const layoutStyle = {
-  display: "flex",
-  gap: 24,
-  alignItems: "flex-start",
-  flexWrap: "wrap",
-};
-
-/* ★ 左を広く */
-const leftStyle = {
-  flex: "0 0 520px",
-  background: "#fff",
-  borderRadius: 12,
-  padding: 24,
-  boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
-};
-
-const rightStyle = {
-  flex: 1,
-  minWidth: 360,
-};
-
-const dateHeaderStyle = {
-  fontSize: 16,
-  fontWeight: 600,
-  marginBottom: 16,
-};
-
-const fieldStyle = {
-  width: "100%",
-  height: 42,
-  borderRadius: 8,
-  border: "1px solid #ccc",
-  padding: "0 10px",
-};
-
-const buttonStyle = {
-  width: "100%",
-  height: 46,
-  marginTop: 16,
-  borderRadius: 8,
-  background: "#16a34a",
-  color: "#fff",
-  border: "none",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const roomBlock = { marginBottom: 20 };
-
-const roomTitleStyle = { fontSize: 16, marginBottom: 6 };
-
-const timelineCardStyle = {
-  background: "#fff",
-  borderRadius: 10,
-  boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-};
-
-const rowStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  padding: "10px 12px",
-  borderBottom: "1px solid #eee",
-  fontSize: 14,
-};
-
-const purposeStyle = { fontSize: 12, color: "#555" };
-
-const deleteStyle = {
-  background: "none",
-  border: "none",
-  color: "#dc2626",
-  cursor: "pointer",
-};
-
-const emptyStyle = {
-  padding: 12,
-  fontSize: 13,
-  color: "#999",
-};
+export default App;
