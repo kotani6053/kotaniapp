@@ -12,7 +12,6 @@ import {
 
 export default function App() {
   const todayStr = new Date().toISOString().split("T")[0];
-
   const [date, setDate] = useState(todayStr);
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
@@ -46,7 +45,6 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  /* 日付操作関数 */
   const changeDate = (days) => {
     const d = new Date(date);
     d.setDate(d.getDate() + days);
@@ -57,8 +55,7 @@ export default function App() {
     const q = query(collection(db, "reservations"), where("date", "==", date));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const sortedData = data.sort((a, b) => a.startTime.localeCompare(b.startTime));
-      setList(sortedData);
+      setList(data.sort((a, b) => a.startTime.localeCompare(b.startTime)));
     });
     return () => unsub();
   }, [date]);
@@ -69,29 +66,14 @@ export default function App() {
   };
 
   const isOverlapping = () =>
-    list.some(
-      (r) =>
-        r.room === room &&
-        !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime))
-    );
+    list.some(r => r.room === room && !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime)));
 
   const addReservation = async () => {
     if (!name || !purpose) return alert("未入力の項目があります");
     if (toMin(start) >= toMin(end)) return alert("時間が正しくありません");
     if (isOverlapping()) return alert("同じ時間帯に既に予約があります");
-
-    await addDoc(collection(db, "reservations"), {
-      date,
-      name,
-      department,
-      purpose,
-      room,
-      startTime: start,
-      endTime: end,
-    });
-
-    setName("");
-    setPurpose("");
+    await addDoc(collection(db, "reservations"), { date, name, department, purpose, room, startTime: start, endTime: end });
+    setName(""); setPurpose("");
   };
 
   const removeReservation = async (id) => {
@@ -101,123 +83,87 @@ export default function App() {
 
   return (
     <div style={pageStyle}>
-      <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-        <h1 style={titleStyle}>会議室予約システム</h1>
-
-        {/* 部署カラー凡例 */}
-        <div style={legendStyle}>
-          {Object.entries(deptColors).map(([dept, color]) => (
-            <div key={dept} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 14, height: 14, background: color, borderRadius: 3 }}></div>
-              <span style={{ fontSize: 13, fontWeight: "bold" }}>{dept}</span>
-            </div>
-          ))}
+      <div style={{ maxWidth: 1550, margin: "0 auto" }}>
+        {/* ヘッダーエリア（一行に集約） */}
+        <div style={headerRow}>
+          <h1 style={titleStyle}>会議室予約</h1>
+          <div style={legendStyle}>
+            {Object.entries(deptColors).map(([dept, color]) => (
+              <div key={dept} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ width: 12, height: 12, background: color, borderRadius: 2 }}></div>
+                <span style={{ fontSize: 12 }}>{dept}</span>
+              </div>
+            ))}
+          </div>
+          <div style={dateNavStyle}>
+            <button onClick={() => changeDate(-1)} style={navBtnStyle}>◀</button>
+            <span style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")}</span>
+            <button onClick={() => changeDate(1)} style={navBtnStyle}>▶</button>
+          </div>
         </div>
 
-        <div style={layoutStyle}>
-          {/* 左側：入力フォーム */}
-          <div style={leftStyle}>
-            <h2 style={formTitleStyle}>新規予約</h2>
-            <FormField label="日付">
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
-            </FormField>
-            <FormField label="予約者名">
-              <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="氏名" />
-            </FormField>
+        <div style={mainLayout}>
+          {/* 左：フォーム（幅を詰め、高さを1画面内に） */}
+          <div style={leftFormStyle}>
+            <FormField label="予約者名"><input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} /></FormField>
             <FormField label="所属部署">
               <select value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle}>
                 {departments.map((d) => <option key={d}>{d}</option>)}
               </select>
             </FormField>
-            <FormField label="目的・参加人数">
-              <input value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle} placeholder="例：定例MTG（5名）" />
-            </FormField>
+            <FormField label="目的"><input value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle} /></FormField>
             <FormField label="会議室">
               <select value={room} onChange={(e) => setRoom(e.target.value)} style={fieldStyle}>
                 {rooms.map((r) => <option key={r}>{r}</option>)}
               </select>
             </FormField>
-            <div style={{ display: "flex", gap: 15 }}>
-              <FormField label="開始">
-                <select value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle}>
-                  {times.map((t) => <option key={t}>{t}</option>)}
-                </select>
-              </FormField>
-              <FormField label="終了">
-                <select value={end} onChange={(e) => setEnd(e.target.value)} style={fieldStyle}>
-                  {times.concat("18:30").map((t) => <option key={t}>{t}</option>)}
-                </select>
-              </FormField>
+            <div style={{ display: "flex", gap: 10 }}>
+              <FormField label="開始"><select value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle}>{times.map((t) => <option key={t}>{t}</option>)}</select></FormField>
+              <FormField label="終了"><select value={end} onChange={(e) => setEnd(e.target.value)} style={fieldStyle}>{times.concat("18:30").map((t) => <option key={t}>{t}</option>)}</select></FormField>
             </div>
-            <button onClick={addReservation} style={buttonStyle}>予約を確定する</button>
+            <button onClick={addReservation} style={buttonStyle}>予約確定</button>
           </div>
 
-          {/* 右側：表示エリア */}
-          <div style={rightStyle}>
-            <div style={dateNavStyle}>
-              <button onClick={() => changeDate(-1)} style={navBtnStyle}>◀ 前日</button>
-              <span style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")} の状況</span>
-              <button onClick={() => changeDate(1)} style={navBtnStyle}>翌日 ▶</button>
-            </div>
-            
-            <div style={timelineWrapper}>
+          {/* 右上：タイムライン */}
+          <div style={rightDisplayArea}>
+            <div style={timelineContainer}>
               <div style={timeHeaderRow}>
-                <div style={{ width: 140 }}></div>
+                <div style={{ width: 100 }}></div>
                 <div style={timeLabelsContainer}>
                   {times.filter((_, i) => i % 2 === 0).map((t) => (
-                    <div key={t} style={{ ...timeLabelCell, width: `${(60 / TOTAL_MIN) * 100}%` }}>
-                      {t}
-                    </div>
+                    <div key={t} style={{ ...timeLabelCell, width: `${(60 / TOTAL_MIN) * 100}%` }}>{t}</div>
                   ))}
                 </div>
               </div>
-
               {rooms.map((roomName) => (
                 <div key={roomName} style={roomRow}>
                   <div style={roomLabel}>{roomName}</div>
                   <div style={timelineTrack}>
-                    {times.map((t) => (
-                      <div key={t} style={{ ...gridLine, left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%` }} />
+                    {times.map((t) => (<div key={t} style={{ ...gridLine, left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%` }} />))}
+                    {list.filter((r) => r.room === roomName).map((r) => (
+                      <div key={r.id} style={{ ...barStyle, left: `${((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100}%`, width: `${((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100}%`, background: deptColors[r.department] }}>
+                        <span style={barTextStyle}><strong>{r.name}</strong>:{r.purpose}</span>
+                      </div>
                     ))}
-                    {list.filter((r) => r.room === roomName).map((r) => {
-                        const left = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
-                        const width = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
-                        return (
-                          <div
-                            key={r.id}
-                            title={`${r.startTime}〜${r.endTime} ${r.name}`}
-                            style={{ ...barStyle, left: `${left}%`, width: `${width}%`, background: deptColors[r.department] }}
-                          >
-                            <span style={barTextStyle}><strong>{r.name}</strong>: {r.purpose}</span>
-                            <button onClick={() => removeReservation(r.id)} style={miniDeleteBtn}>×</button>
-                          </div>
-                        );
-                      })}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* 部屋ごとの詳細リスト */}
-            <div style={{ marginTop: 40 }}>
-              <h2 style={{ fontSize: 22, marginBottom: 20 }}>予約詳細（部屋別）</h2>
+            {/* 右下：部屋別リスト（横並びで高さを節約） */}
+            <div style={listGrid}>
               {rooms.map(roomName => (
-                <div key={roomName} style={{ marginBottom: 30 }}>
-                  <h3 style={roomListHeader}>{roomName}</h3>
-                  {list.filter(r => r.room === roomName).length > 0 ? (
-                    list.filter(r => r.room === roomName).map(r => (
-                      <div key={r.id} style={listItemStyle}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-                          <span style={timeBadge}>{r.startTime} ～ {r.endTime}</span>
-                          <span style={{ ...deptBadge, background: deptColors[r.department] }}>{r.department}</span>
-                          <span style={{ fontSize: 17 }}><strong>{r.name}</strong> ／ {r.purpose}</span>
-                        </div>
-                        <button onClick={() => removeReservation(r.id)} style={deleteBtnStyle}>削除</button>
+                <div key={roomName} style={roomListSection}>
+                  <div style={roomListTitle}>{roomName}</div>
+                  <div style={roomListScroll}>
+                    {list.filter(r => r.room === roomName).map(r => (
+                      <div key={r.id} style={compactListItem}>
+                        <span style={{fontWeight:'bold', fontSize:12}}>{r.startTime}-{r.endTime}</span>
+                        <span style={{fontSize:12, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}> {r.name}</span>
+                        <button onClick={() => removeReservation(r.id)} style={smallDelBtn}>×</button>
                       </div>
-                    ))
-                  ) : (
-                    <p style={{ color: "#999", fontSize: 15, paddingLeft: 10 }}>この部屋の予約はありません</p>
-                  )}
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -229,45 +175,38 @@ export default function App() {
 }
 
 const FormField = ({ label, children }) => (
-  <div style={{ marginBottom: 20, flex: 1 }}>
-    <label style={{ fontSize: 14, fontWeight: "bold", display: "block", marginBottom: 8, color: "#444" }}>{label}</label>
-    {children}
-  </div>
+  <div style={{ marginBottom: 10 }}><label style={{ fontSize: 12, fontWeight: "bold", display: "block", marginBottom: 3 }}>{label}</label>{children}</div>
 );
 
-/* Styles */
-const pageStyle = { background: "#f1f3f6", minHeight: "100vh", padding: "40px 20px", fontFamily: "'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif" };
-const titleStyle = { textAlign: "center", marginBottom: 10, fontSize: 34, fontWeight: "900", color: "#1a202c" };
-const legendStyle = { display: "flex", justifyContent: "center", gap: 25, marginBottom: 35, background: "#fff", padding: "12px 25px", borderRadius: "40px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", width: "fit-content", margin: "0 auto 35px" };
-const layoutStyle = { display: "flex", gap: 40, alignItems: "flex-start" };
+/* Styles (1画面に収めるための凝縮設定) */
+const pageStyle = { background: "#f0f2f5", height: "100vh", padding: "10px 20px", fontFamily: "sans-serif", overflow: "hidden" };
+const headerRow = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, background: "#fff", padding: "5px 20px", borderRadius: "10px" };
+const titleStyle = { fontSize: 20, fontWeight: "900", margin: 0 };
+const legendStyle = { display: "flex", gap: 15 };
+const dateNavStyle = { display: "flex", alignItems: "center", gap: 10 };
+const dateHeaderStyle = { fontSize: 18, fontWeight: "bold" };
+const navBtnStyle = { padding: "4px 10px", cursor: "pointer", borderRadius: "4px", border: "1px solid #ccc" };
 
-const leftStyle = { flex: "0 0 380px", background: "#fff", padding: "35px", borderRadius: "20px", boxShadow: "0 15px 35px rgba(0,0,0,0.08)", position: "sticky", top: 20 };
-const formTitleStyle = { fontSize: 20, marginBottom: 25, borderBottom: "3px solid #f1f3f6", paddingBottom: 15, fontWeight: "bold" };
-const rightStyle = { flex: 1 };
+const mainLayout = { display: "flex", gap: 15, height: "calc(100vh - 70px)" };
+const leftFormStyle = { width: 260, background: "#fff", padding: "20px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", height: "fit-content" };
+const fieldStyle = { width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ddd", fontSize: "14px" };
+const buttonStyle = { width: "100%", padding: "12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "bold", marginTop: "10px", cursor: "pointer" };
 
-const fieldStyle = { width: "100%", padding: "14px", borderRadius: "10px", border: "1px solid #d1d5db", fontSize: "16px", outline: "none", transition: "0.2s border" };
-const buttonStyle = { width: "100%", padding: "18px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "10px", cursor: "pointer", fontWeight: "bold", fontSize: "18px", marginTop: "15px", boxShadow: "0 4px 12px rgba(37,99,235,0.2)" };
-
-const dateNavStyle = { display: "flex", alignItems: "center", gap: 20, marginBottom: 25 };
-const navBtnStyle = { background: "#fff", border: "1px solid #d1d5db", padding: "10px 18px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", transition: "0.2s" };
-const dateHeaderStyle = { fontSize: 26, fontWeight: "bold", color: "#2d3748" };
-
-const timelineWrapper = { background: "#fff", padding: "40px 25px", borderRadius: "20px", boxShadow: "0 15px 35px rgba(0,0,0,0.08)" };
-const timeHeaderRow = { display: "flex", marginBottom: 20 };
+const rightDisplayArea = { flex: 1, display: "flex", flexDirection: "column", gap: 10, height: "100%" };
+const timelineContainer = { background: "#fff", padding: "15px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
+const timeHeaderRow = { display: "flex", marginBottom: 5 };
 const timeLabelsContainer = { display: "flex", flex: 1, position: "relative" };
-const timeLabelCell = { fontSize: 13, color: "#718096", fontWeight: "bold" };
+const timeLabelCell = { fontSize: 11, color: "#718096" };
+const roomRow = { display: "flex", alignItems: "center", marginBottom: 8 };
+const roomLabel = { width: 100, fontSize: 13, fontWeight: "bold" };
+const timelineTrack = { position: "relative", flex: 1, height: 36, background: "#f8fafc", borderRadius: "6px", border: "1px solid #eee", overflow: "hidden" };
+const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1, background: "#eee" };
+const barStyle = { position: "absolute", top: 4, bottom: 4, borderRadius: "4px", color: "#fff", display: "flex", alignItems: "center", padding: "0 8px", fontSize: "11px", zIndex: 2 };
+const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 
-const roomRow = { display: "flex", alignItems: "center", marginBottom: 25 };
-const roomLabel = { width: 140, fontSize: 16, fontWeight: "bold", color: "#4a5568" };
-const timelineTrack = { position: "relative", flex: 1, height: 60, background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" };
-const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1, background: "#e2e8f0" };
-
-const barStyle = { position: "absolute", top: 8, bottom: 8, borderRadius: "8px", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 15px", fontSize: "13px", zIndex: 2, boxShadow: "0 4px 6px rgba(0,0,0,0.15)", minWidth: "40px" };
-const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: "10px" };
-const miniDeleteBtn = { background: "rgba(0,0,0,0.25)", border: "none", color: "#fff", borderRadius: "50%", width: "22px", height: "22px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "14px", flexShrink: 0 };
-
-const roomListHeader = { fontSize: 20, borderLeft: "6px solid #2d3748", paddingLeft: 15, marginBottom: 20, color: "#2d3748", fontWeight: "bold" };
-const listItemStyle = { background: "#fff", padding: "20px 25px", borderRadius: "12px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 4px 10px rgba(0,0,0,0.04)" };
-const timeBadge = { background: "#2d3748", color: "#fff", padding: "6px 14px", borderRadius: "6px", fontSize: "15px", fontWeight: "bold", minWidth: "120px", textAlign: "center" };
-const deptBadge = { color: "#fff", padding: "5px 10px", borderRadius: "5px", fontSize: "12px", fontWeight: "bold" };
-const deleteBtnStyle = { background: "#fee2e2", color: "#dc2626", border: "none", padding: "10px 20px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontWeight: "bold", transition: "0.2s" };
+const listGrid = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, flex: 1, overflow: "hidden" };
+const roomListSection = { background: "#fff", borderRadius: "10px", padding: "10px", display: "flex", flexDirection: "column", border: "1px solid #e0e0e0" };
+const roomListTitle = { fontSize: 14, fontWeight: "bold", borderBottom: "2px solid #f0f0f0", marginBottom: 8, paddingBottom: 4 };
+const roomListScroll = { flex: 1, overflowY: "auto" };
+const compactListItem = { display: "flex", alignItems: "center", background: "#f9f9f9", padding: "4px 8px", borderRadius: "4px", marginBottom: 4, gap: 5 };
+const smallDelBtn = { background: "none", border: "none", color: "#cc0000", cursor: "pointer", fontWeight: "bold", fontSize: "14px" };
