@@ -17,13 +17,13 @@ const App = () => {
     room: "1階食堂",
     date: today,
     startTime: "08:30",
-    endTime: "08:40",
+    endTime: "09:00",
   });
 
-  /* ---------- 時間リスト ---------- */
+  /* ===== 30分刻み時間リスト ===== */
   const timeOptions = [];
   for (let h = 8; h <= 18; h++) {
-    for (let m = 0; m < 60; m += 10) {
+    for (let m = 0; m < 60; m += 30) {
       const time = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
       if (time >= "08:30" && time <= "18:00") timeOptions.push(time);
     }
@@ -34,7 +34,7 @@ const App = () => {
     return timeOptions[idx + 1] || time;
   };
 
-  /* ---------- Firestore ---------- */
+  /* ===== Firestore ===== */
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "reservations"), snap => {
       setReservations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -42,14 +42,14 @@ const App = () => {
     return () => unsub();
   }, []);
 
-  /* ---------- 入力 ---------- */
+  /* ===== 入力 ===== */
   const handleChange = (e) => {
     setErrorMessage("");
     setSuccessMessage("");
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  /* ---------- 空きクリック ---------- */
+  /* ===== 空きクリック ===== */
   const handleEmptyClick = (date, room, time) => {
     setFormData(prev => ({
       ...prev,
@@ -60,7 +60,7 @@ const App = () => {
     }));
   };
 
-  /* ---------- 重複 ---------- */
+  /* ===== 重複チェック ===== */
   const isOverlapping = (newRes) =>
     reservations.some(
       r =>
@@ -69,7 +69,7 @@ const App = () => {
         !(newRes.endTime <= r.startTime || newRes.startTime >= r.endTime)
     );
 
-  /* ---------- 登録 ---------- */
+  /* ===== 登録 ===== */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -87,13 +87,13 @@ const App = () => {
     setFormData({ ...formData, name: "", purpose: "", guest: "" });
   };
 
-  /* ---------- 削除 ---------- */
+  /* ===== 削除 ===== */
   const handleDelete = async (id) => {
     if (!window.confirm("この予約を削除しますか？")) return;
     await deleteDoc(doc(db, "reservations", id));
   };
 
-  /* ---------- 整理 ---------- */
+  /* ===== 日付・部屋整理 ===== */
   const grouped = {};
   reservations.forEach(r => {
     if (!grouped[r.date]) grouped[r.date] = {};
@@ -101,13 +101,13 @@ const App = () => {
     grouped[r.date][r.room].push(r);
   });
 
-  /* ===================== UI ===================== */
+  /* ================= UI ================= */
   return (
     <div className="p-10 bg-gray-50 min-h-screen">
       <h1 className="text-5xl font-bold mb-10">📖 KOTANI会議室予約</h1>
 
       <div className="grid md:grid-cols-[1.2fr_0.8fr] gap-10">
-        {/* 入力 */}
+        {/* ===== 入力 ===== */}
         <div className="bg-white p-8 rounded-3xl shadow-xl">
           <h2 className="text-4xl font-bold mb-8">📌 予約入力</h2>
 
@@ -145,13 +145,15 @@ const App = () => {
               </select>
             </div>
 
-            <button className="w-full py-6 text-4xl bg-blue-600 text-white rounded-2xl">🚀 予約する</button>
+            <button className="w-full py-6 text-4xl bg-blue-600 text-white rounded-2xl">
+              🚀 予約する
+            </button>
           </form>
         </div>
 
-        {/* タイムライン */}
+        {/* ===== タイムライン ===== */}
         <div>
-          <h2 className="text-3xl font-semibold mb-6">📅 部屋別タイムライン</h2>
+          <h2 className="text-3xl font-semibold mb-6">📅 部屋別タイムライン（30分刻み）</h2>
 
           {Object.entries(grouped).map(([date, rooms]) => (
             <div key={date} className="mb-10">
@@ -164,13 +166,15 @@ const App = () => {
                   {timeOptions.map(time => {
                     const r = entries.find(e => e.startTime <= time && e.endTime > time);
                     return (
-                      <div key={time} className="flex items-center border-t h-9 text-sm">
+                      <div key={time} className="flex items-center border-t h-10 text-sm">
                         <div className="w-20 text-center bg-gray-100">{time}</div>
                         <div className="flex-1 px-2">
                           {r ? (
                             <div className="bg-blue-500 text-white px-2 py-1 rounded flex justify-between">
                               <span>{r.name}</span>
-                              <button onClick={() => handleDelete(r.id)} className="underline">削除</button>
+                              <button onClick={() => handleDelete(r.id)} className="underline">
+                                削除
+                              </button>
                             </div>
                           ) : (
                             <button
