@@ -25,6 +25,13 @@ export default function App() {
     });
   }
 
+  const rooms = [
+    "1階食堂",
+    "2階会議室①",
+    "2階会議室②",
+    "3階応接室",
+  ];
+
   /* ===== Firestore ===== */
   useEffect(() => {
     return onSnapshot(collection(db, "reservations"), (snap) => {
@@ -36,14 +43,8 @@ export default function App() {
   }, []);
 
   const addReservation = async () => {
-    if (!name) {
-      alert("名前を入力してください");
-      return;
-    }
-    if (start >= end) {
-      alert("時間が正しくありません");
-      return;
-    }
+    if (!name) return alert("名前を入力してください");
+    if (start >= end) return alert("時間が正しくありません");
 
     await addDoc(collection(db, "reservations"), {
       name,
@@ -56,53 +57,60 @@ export default function App() {
     setName("");
   };
 
-  const rooms = [
-    "1階食堂",
-    "2階会議室①",
-    "2階会議室②",
-    "3階応接室",
-  ];
-
   return (
-    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 16 }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f5f6f8",
+        padding: "40px 20px",
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
+      {/* ===== タイトル ===== */}
+      <h1
+        style={{
+          textAlign: "center",
+          fontSize: 26,
+          fontWeight: 600,
+          marginBottom: 30,
+        }}
+      >
         会議室予約（本日）
       </h1>
 
-      {/* ===== 入力 ===== */}
-      <div style={{ marginBottom: 24 }}>
+      {/* ===== 入力カード ===== */}
+      <div
+        style={{
+          maxWidth: 560,
+          margin: "0 auto 40px",
+          background: "#fff",
+          borderRadius: 12,
+          padding: 24,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+        }}
+      >
         <input
           placeholder="名前"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          style={{
-            width: "100%",
-            height: 44,
-            fontSize: 18,
-            marginBottom: 8,
-          }}
+          style={inputStyle}
         />
 
         <select
           value={room}
           onChange={(e) => setRoom(e.target.value)}
-          style={{
-            width: "100%",
-            height: 44,
-            fontSize: 18,
-            marginBottom: 8,
-          }}
+          style={inputStyle}
         >
           {rooms.map((r) => (
             <option key={r}>{r}</option>
           ))}
         </select>
 
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 12 }}>
           <select
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            style={{ flex: 1, height: 44, fontSize: 18 }}
+            style={inputStyle}
           >
             {times.map((t) => (
               <option key={t}>{t}</option>
@@ -112,7 +120,7 @@ export default function App() {
           <select
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            style={{ flex: 1, height: 44, fontSize: 18 }}
+            style={inputStyle}
           >
             {times.map((t) => (
               <option key={t}>{t}</option>
@@ -123,54 +131,110 @@ export default function App() {
         <button
           onClick={addReservation}
           style={{
-            marginTop: 10,
+            marginTop: 16,
             width: "100%",
-            height: 48,
-            fontSize: 20,
+            height: 46,
+            borderRadius: 8,
+            border: "none",
+            background: "#2563eb",
+            color: "#fff",
+            fontSize: 16,
+            fontWeight: 600,
+            cursor: "pointer",
           }}
         >
           予約する
         </button>
       </div>
 
-      {/* ===== 一覧 ===== */}
-      {rooms.map((roomName) => (
-        <div key={roomName} style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: 22, marginBottom: 6 }}>
-            {roomName}
-          </h2>
+      {/* ===== タイムライン ===== */}
+      <div style={{ maxWidth: 720, margin: "0 auto" }}>
+        {rooms.map((roomName) => (
+          <div key={roomName} style={{ marginBottom: 28 }}>
+            <h2
+              style={{
+                fontSize: 18,
+                fontWeight: 600,
+                marginBottom: 8,
+              }}
+            >
+              {roomName}
+            </h2>
 
-          {list
-            .filter((r) => r.room === roomName)
-            .sort((a, b) =>
-              a.startTime.localeCompare(b.startTime)
-            )
-            .map((r) => (
-              <div
-                key={r.id}
-                style={{
-                  fontSize: 16,
-                  padding: "6px 0",
-                  borderBottom: "1px solid #ddd",
-                }}
-              >
-                {r.startTime}〜{r.endTime} ／ {r.name}
-                <button
-                  onClick={() =>
-                    deleteDoc(doc(db, "reservations", r.id))
-                  }
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 10,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+              }}
+            >
+              {list
+                .filter((r) => r.room === roomName)
+                .sort((a, b) =>
+                  a.startTime.localeCompare(b.startTime)
+                )
+                .map((r) => (
+                  <div
+                    key={r.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "10px 14px",
+                      borderBottom:
+                        "1px solid #eee",
+                      fontSize: 15,
+                    }}
+                  >
+                    <span>
+                      {r.startTime}〜{r.endTime} ／{" "}
+                      <strong>{r.name}</strong>
+                    </span>
+                    <button
+                      onClick={() =>
+                        deleteDoc(
+                          doc(db, "reservations", r.id)
+                        )
+                      }
+                      style={{
+                        border: "none",
+                        background: "none",
+                        color: "#dc2626",
+                        cursor: "pointer",
+                      }}
+                    >
+                      削除
+                    </button>
+                  </div>
+                ))}
+
+              {list.filter((r) => r.room === roomName)
+                .length === 0 && (
+                <div
                   style={{
-                    marginLeft: 8,
+                    padding: 14,
                     fontSize: 14,
-                    color: "red",
+                    color: "#999",
                   }}
                 >
-                  削除
-                </button>
-              </div>
-            ))}
-        </div>
-      ))}
+                  予約なし
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
+
+/* ===== 共通入力スタイル ===== */
+const inputStyle = {
+  width: "100%",
+  height: 42,
+  fontSize: 15,
+  padding: "0 10px",
+  marginBottom: 12,
+  borderRadius: 8,
+  border: "1px solid #ccc",
+};
