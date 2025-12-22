@@ -22,7 +22,6 @@ export default function App() {
   const [end, setEnd] = useState("09:30");
   const [list, setList] = useState([]);
 
-  /* ===== 設定：8:00〜18:00 (30分刻み) ===== */
   const START_HOUR = 8;
   const END_HOUR = 18;
   const START_MIN = START_HOUR * 60;
@@ -32,7 +31,7 @@ export default function App() {
   const times = [];
   for (let h = START_HOUR; h <= END_HOUR; h++) {
     ["00", "30"].forEach((m) => {
-      if (h === END_HOUR && m === "30") return; // 18:30以降は除外
+      if (h === END_HOUR && m === "30") return;
       times.push(`${String(h).padStart(2, "0")}:${m}`);
     });
   }
@@ -47,12 +46,13 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  /* ===== Firestore: 日付が変わるたびにその日の分だけをリアルタイム購読 ===== */
   useEffect(() => {
     const q = query(collection(db, "reservations"), where("date", "==", date));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setList(data);
+      // 時間順にソートしてセット
+      const sortedData = data.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      setList(sortedData);
     });
     return () => unsub();
   }, [date]);
@@ -95,108 +95,120 @@ export default function App() {
 
   return (
     <div style={pageStyle}>
-      <h1 style={titleStyle}>会議室予約システム</h1>
+      <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+        <h1 style={titleStyle}>会議室予約システム</h1>
 
-      <div style={layoutStyle}>
-        {/* 左側：入力フォーム */}
-        <div style={leftStyle}>
-          <FormField label="日付">
-            <input type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
-          </FormField>
-          <FormField label="名前">
-            <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} />
-          </FormField>
-          <FormField label="所属">
-            <select value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle}>
-              {departments.map((d) => <option key={d}>{d}</option>)}
-            </select>
-          </FormField>
-          <FormField label="使用目的・参加者">
-            <input value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle} placeholder="例：定例MTG（3名）" />
-          </FormField>
-          <FormField label="部屋">
-            <select value={room} onChange={(e) => setRoom(e.target.value)} style={fieldStyle}>
-              {rooms.map((r) => <option key={r}>{r}</option>)}
-            </select>
-          </FormField>
-          <div style={{ display: "flex", gap: 10 }}>
-            <FormField label="開始">
-              <select value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle}>
-                {times.map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </FormField>
-            <FormField label="終了">
-              <select value={end} onChange={(e) => setEnd(e.target.value)} style={fieldStyle}>
-                {times.concat("18:30").map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </FormField>
-          </div>
-          <button onClick={addReservation} style={buttonStyle}>予約する</button>
+        {/* 部署カラー凡例 */}
+        <div style={legendStyle}>
+          {Object.entries(deptColors).map(([dept, color]) => (
+            <div key={dept} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 14, height: 14, background: color, borderRadius: 3 }}></div>
+              <span style={{ fontSize: 13, fontWeight: "bold" }}>{dept}</span>
+            </div>
+          ))}
         </div>
 
-        {/* 右側：タイムライン表示 */}
-        <div style={rightStyle}>
-          <div style={dateHeaderStyle}>📅 {date} の予約状況</div>
-          
-          <div style={timelineWrapper}>
-            {/* 時間軸の目盛り */}
-            <div style={timeHeaderRow}>
-              <div style={{ width: 100 }}></div> {/* 部屋名ラベル分の余白 */}
-              <div style={timeLabelsContainer}>
-                {times.filter((_, i) => i % 2 === 0).map((t) => (
-                  <div key={t} style={{ ...timeLabelCell, width: `${(60 / TOTAL_MIN) * 100}%` }}>
-                    {t}
-                  </div>
-                ))}
-              </div>
+        <div style={layoutStyle}>
+          {/* 左側：入力フォーム */}
+          <div style={leftStyle}>
+            <h2 style={{ fontSize: 18, marginBottom: 20, borderBottom: "2px solid #eee", paddingBottom: 10 }}>新規予約</h2>
+            <FormField label="日付">
+              <input type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+            </FormField>
+            <FormField label="名前">
+              <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="氏名を入力" />
+            </FormField>
+            <FormField label="所属部署">
+              <select value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle}>
+                {departments.map((d) => <option key={d}>{d}</option>)}
+              </select>
+            </FormField>
+            <FormField label="使用目的・参加者数">
+              <input value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle} placeholder="例：課内会議（5名）" />
+            </FormField>
+            <FormField label="会議室を選択">
+              <select value={room} onChange={(e) => setRoom(e.target.value)} style={fieldStyle}>
+                {rooms.map((r) => <option key={r}>{r}</option>)}
+              </select>
+            </FormField>
+            <div style={{ display: "flex", gap: 15 }}>
+              <FormField label="開始">
+                <select value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle}>
+                  {times.map((t) => <option key={t}>{t}</option>)}
+                </select>
+              </FormField>
+              <FormField label="終了">
+                <select value={end} onChange={(e) => setEnd(e.target.value)} style={fieldStyle}>
+                  {times.concat("18:30").map((t) => <option key={t}>{t}</option>)}
+                </select>
+              </FormField>
             </div>
-
-            {/* 各部屋のライン */}
-            {rooms.map((roomName) => (
-              <div key={roomName} style={roomRow}>
-                <div style={roomLabel}>{roomName}</div>
-                <div style={timelineTrack}>
-                  {/* 背景の30分ごとの縦線グリッド */}
-                  {times.map((t) => (
-                    <div key={t} style={{ ...gridLine, left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%` }} />
-                  ))}
-                  
-                  {/* 予約バー */}
-                  {list
-                    .filter((r) => r.room === roomName)
-                    .map((r) => {
-                      const left = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
-                      const width = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
-                      return (
-                        <div
-                          key={r.id}
-                          title={`${r.startTime}-${r.endTime} ${r.name}: ${r.purpose}`}
-                          style={{
-                            ...barStyle,
-                            left: `${left}%`,
-                            width: `${width}%`,
-                            background: deptColors[r.department],
-                          }}
-                        >
-                          <span style={barTextStyle}>{r.purpose}</span>
-                          <button onClick={() => removeReservation(r.id)} style={barDeleteBtn}>×</button>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            ))}
+            <button onClick={addReservation} style={buttonStyle}>この内容で予約する</button>
           </div>
 
-          {/* 簡易リスト表示（削除用） */}
-          <div style={{ marginTop: 24 }}>
-            <h3>予約詳細リスト</h3>
-            {list.map((r) => (
-              <div key={r.id} style={listItemStyle}>
-                <span>{r.startTime}～{r.endTime} | <strong>{r.room}</strong> | {r.name} ({r.purpose})</span>
-                <button onClick={() => removeReservation(r.id)} style={deleteLinkStyle}>削除</button>
+          {/* 右側：タイムラインと詳細リスト */}
+          <div style={rightStyle}>
+            <div style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")} の予約状況</div>
+            
+            <div style={timelineWrapper}>
+              <div style={timeHeaderRow}>
+                <div style={{ width: 140 }}></div>
+                <div style={timeLabelsContainer}>
+                  {times.filter((_, i) => i % 2 === 0).map((t) => (
+                    <div key={t} style={{ ...timeLabelCell, width: `${(60 / TOTAL_MIN) * 100}%` }}>
+                      {t}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
+
+              {rooms.map((roomName) => (
+                <div key={roomName} style={roomRow}>
+                  <div style={roomLabel}>{roomName}</div>
+                  <div style={timelineTrack}>
+                    {times.map((t) => (
+                      <div key={t} style={{ ...gridLine, left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%` }} />
+                    ))}
+                    {list.filter((r) => r.room === roomName).map((r) => {
+                        const left = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
+                        const width = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
+                        return (
+                          <div
+                            key={r.id}
+                            style={{ ...barStyle, left: `${left}%`, width: `${width}%`, background: deptColors[r.department] }}
+                          >
+                            <span style={barTextStyle}><strong>{r.name}</strong>: {r.purpose}</span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 部屋ごとの予約詳細リスト */}
+            <div style={{ marginTop: 40 }}>
+              <h2 style={{ fontSize: 20, marginBottom: 20 }}>予約詳細（部屋別）</h2>
+              {rooms.map(roomName => (
+                <div key={roomName} style={{ marginBottom: 25 }}>
+                  <h3 style={roomListHeader}>{roomName}</h3>
+                  {list.filter(r => r.room === roomName).length > 0 ? (
+                    list.filter(r => r.room === roomName).map(r => (
+                      <div key={r.id} style={listItemStyle}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+                          <span style={timeBadge}>{r.startTime} ～ {r.endTime}</span>
+                          <span style={{ ...deptBadge, background: deptColors[r.department] }}>{r.department}</span>
+                          <span style={{ fontSize: 16 }}><strong>{r.name}</strong>：{r.purpose}</span>
+                        </div>
+                        <button onClick={() => removeReservation(r.id)} style={deleteBtnStyle}>削除</button>
+                      </div>
+                    ))
+                  ) : (
+                    <p style={{ color: "#999", fontSize: 14, paddingLeft: 10 }}>この部屋の予約はありません</p>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -206,49 +218,41 @@ export default function App() {
 
 /* ===== 共通コンポーネント ===== */
 const FormField = ({ label, children }) => (
-  <div style={{ marginBottom: 12, flex: 1 }}>
-    <label style={{ fontSize: 12, fontWeight: "bold", display: "block", marginBottom: 4 }}>{label}</label>
+  <div style={{ marginBottom: 18, flex: 1 }}>
+    <label style={{ fontSize: 14, fontWeight: "bold", display: "block", marginBottom: 6, color: "#444" }}>{label}</label>
     {children}
   </div>
 );
 
 /* ===== Styles ===== */
-const pageStyle = { background: "#f0f2f5", minHeight: "100vh", padding: 20, fontFamily: "sans-serif" };
-const titleStyle = { textAlign: "center", marginBottom: 20, color: "#333" };
-const layoutStyle = { display: "flex", gap: 20, maxWidth: 1200, margin: "0 auto" };
-const leftStyle = { flex: "0 0 300px", background: "#fff", padding: 20, borderRadius: 10, boxShadow: "0 2px 4px rgba(0,0,0,0.1)", height: "fit-content" };
+const pageStyle = { background: "#f8f9fa", minHeight: "100vh", padding: "40px 20px", fontFamily: "'Helvetica Neue', Arial, sans-serif" };
+const titleStyle = { textAlign: "center", marginBottom: 10, fontSize: 32, fontWeight: "800", color: "#1a202c" };
+const legendStyle = { display: "flex", justifyContent: "center", gap: 20, marginBottom: 30, background: "#fff", padding: "10px", borderRadius: "30px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
+const layoutStyle = { display: "flex", gap: 30, alignItems: "flex-start" };
+
+const leftStyle = { flex: "0 0 350px", background: "#fff", padding: "30px", borderRadius: "15px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", position: "sticky", top: 20 };
 const rightStyle = { flex: 1 };
-const fieldStyle = { width: "100%", padding: "8px", borderRadius: 4, border: "1px solid #ddd", boxSizing: "border-box" };
-const buttonStyle = { width: "100%", padding: "12px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: "bold" };
-const dateHeaderStyle = { fontSize: 18, fontWeight: "bold", marginBottom: 15 };
 
-const timelineWrapper = { background: "#fff", padding: "20px 10px", borderRadius: 10, boxShadow: "0 2px 4px rgba(0,0,0,0.1)", overflowX: "auto" };
-const timeHeaderRow = { display: "flex", marginBottom: 10 };
-const timeLabelsContainer = { display: "flex", flex: 1, position: "relative", borderBottom: "1px solid #eee" };
-const timeLabelCell = { fontSize: 11, color: "#666", textAlign: "left" };
+const fieldStyle = { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e0", fontSize: "15px", outline: "none" };
+const buttonStyle = { width: "100%", padding: "15px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "16px", marginTop: "10px", transition: "0.2s" };
 
-const roomRow = { display: "flex", alignItems: "center", marginBottom: 15 };
-const roomLabel = { width: 100, fontSize: 13, fontWeight: "bold", color: "#444" };
-const timelineTrack = { position: "relative", flex: 1, height: 40, background: "#f9fafb", borderRadius: 4, border: "1px solid #eee" };
-const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1, background: "#eee" };
+const dateHeaderStyle = { fontSize: 24, fontWeight: "bold", marginBottom: 20, color: "#2d3748" };
+const timelineWrapper = { background: "#fff", padding: "30px 20px", borderRadius: "15px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)" };
 
-const barStyle = {
-  position: "absolute",
-  top: 4,
-  bottom: 4,
-  borderRadius: 4,
-  color: "#fff",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "0 8px",
-  fontSize: 11,
-  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-  zIndex: 2,
-  overflow: "hidden"
-};
-const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 };
-const barDeleteBtn = { background: "rgba(0,0,0,0.2)", border: "none", color: "#fff", borderRadius: "50%", width: 16, height: 16, fontSize: 10, cursor: "pointer", marginLeft: 4 };
+const timeHeaderRow = { display: "flex", marginBottom: 15 };
+const timeLabelsContainer = { display: "flex", flex: 1, position: "relative" };
+const timeLabelCell = { fontSize: 12, color: "#718096", fontWeight: "600" };
 
-const listItemStyle = { background: "#fff", padding: "10px 15px", borderRadius: 6, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14 };
-const deleteLinkStyle = { color: "#dc2626", background: "none", border: "none", cursor: "pointer", fontSize: 12 };
+const roomRow = { display: "flex", alignItems: "center", marginBottom: 20 };
+const roomLabel = { width: 140, fontSize: 15, fontWeight: "bold", color: "#4a5568" };
+const timelineTrack = { position: "relative", flex: 1, height: 50, background: "#f7fafc", borderRadius: "8px", border: "1px solid #edf2f7", overflow: "hidden" };
+const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1, background: "#e2e8f0" };
+
+const barStyle = { position: "absolute", top: 6, bottom: 6, borderRadius: "6px", color: "#fff", display: "flex", alignItems: "center", padding: "0 12px", fontSize: "12px", zIndex: 2, boxShadow: "0 2px 4px rgba(0,0,0,0.1)" };
+const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+
+const roomListHeader = { fontSize: 18, borderLeft: "5px solid #2d3748", paddingLeft: 12, marginBottom: 15, color: "#2d3748" };
+const listItemStyle = { background: "#fff", padding: "15px 20px", borderRadius: "10px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 2px 5px rgba(0,0,0,0.03)" };
+const timeBadge = { background: "#edf2f7", padding: "5px 10px", borderRadius: "5px", fontSize: "14px", fontWeight: "bold", color: "#2d3748", minWidth: "110px", textAlign: "center" };
+const deptBadge = { color: "#fff", padding: "4px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold" };
+const deleteBtnStyle = { background: "#fee2e2", color: "#dc2626", border: "none", padding: "8px 15px", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: "bold" };
