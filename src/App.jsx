@@ -295,7 +295,16 @@ const fieldStyle = {
   borderRadius: 8,
   border: "1px solid #ccc",
   padding: "0 10px",
+
+  /* ★ これがないと幅が揃わない */
+  boxSizing: "border-box",
+
+  /* ★ date / select の暴走を止める */
+  appearance: "none",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
 };
+
 
 const buttonStyle = {
   width: "100%",
