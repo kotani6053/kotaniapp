@@ -17,7 +17,7 @@ const App = () => {
     room: "1階食堂",
     date: today,
     startTime: "08:30",
-    endTime: "09:00",
+    endTime: "08:40",
   });
 
   /* ---------- 時間リスト ---------- */
@@ -29,19 +29,18 @@ const App = () => {
     }
   }
 
-  /* ---------- Firestore購読 ---------- */
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "reservations"), (snapshot) => {
-      setReservations(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    return () => unsubscribe();
-  }, []);
+  const nextTime = (time) => {
+    const idx = timeOptions.indexOf(time);
+    return timeOptions[idx + 1] || time;
+  };
 
+  /* ---------- Firestore ---------- */
   useEffect(() => {
-    if (!successMessage) return;
-    const t = setTimeout(() => setSuccessMessage(""), 5000);
-    return () => clearTimeout(t);
-  }, [successMessage]);
+    const unsub = onSnapshot(collection(db, "reservations"), snap => {
+      setReservations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
 
   /* ---------- 入力 ---------- */
   const handleChange = (e) => {
@@ -50,7 +49,18 @@ const App = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  /* ---------- 重複チェック ---------- */
+  /* ---------- 空きクリック ---------- */
+  const handleEmptyClick = (date, room, time) => {
+    setFormData(prev => ({
+      ...prev,
+      date,
+      room,
+      startTime: time,
+      endTime: nextTime(time),
+    }));
+  };
+
+  /* ---------- 重複 ---------- */
   const isOverlapping = (newRes) =>
     reservations.some(
       r =>
@@ -83,36 +93,33 @@ const App = () => {
     await deleteDoc(doc(db, "reservations", id));
   };
 
-  /* ---------- 日付 → 部屋で整理 ---------- */
-  const groupedReservations = () => {
-    const grouped = {};
-    reservations.forEach(r => {
-      if (!grouped[r.date]) grouped[r.date] = {};
-      if (!grouped[r.date][r.room]) grouped[r.date][r.room] = [];
-      grouped[r.date][r.room].push(r);
-    });
-    return grouped;
-  };
+  /* ---------- 整理 ---------- */
+  const grouped = {};
+  reservations.forEach(r => {
+    if (!grouped[r.date]) grouped[r.date] = {};
+    if (!grouped[r.date][r.room]) grouped[r.date][r.room] = [];
+    grouped[r.date][r.room].push(r);
+  });
 
   /* ===================== UI ===================== */
   return (
-    <div className="p-10 bg-gray-50 min-h-screen text-xl">
+    <div className="p-10 bg-gray-50 min-h-screen">
       <h1 className="text-5xl font-bold mb-10">📖 KOTANI会議室予約</h1>
 
-      <div className="grid md:grid-cols-2 gap-10">
-        {/* ---------- 入力 ---------- */}
-        <div>
-          <h2 className="text-3xl font-semibold mb-6">📌 予約入力</h2>
+      <div className="grid md:grid-cols-[1.2fr_0.8fr] gap-10">
+        {/* 入力 */}
+        <div className="bg-white p-8 rounded-3xl shadow-xl">
+          <h2 className="text-4xl font-bold mb-8">📌 予約入力</h2>
 
-          {successMessage && <div className="bg-green-100 p-4 mb-4 rounded">{successMessage}</div>}
-          {errorMessage && <div className="bg-red-100 p-4 mb-4 rounded">{errorMessage}</div>}
+          {successMessage && <div className="bg-green-100 p-4 mb-4">{successMessage}</div>}
+          {errorMessage && <div className="bg-red-100 p-4 mb-4">{errorMessage}</div>}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="w-full p-4 border rounded" />
-            <input name="purpose" placeholder="使用目的" value={formData.purpose} onChange={handleChange} required className="w-full p-4 border rounded" />
-            <input name="guest" placeholder="来客者名" value={formData.guest} onChange={handleChange} className="w-full p-4 border rounded" />
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <input name="name" placeholder="名前" value={formData.name} onChange={handleChange} required className="w-full p-6 text-2xl border-2 rounded-2xl" />
+            <input name="purpose" placeholder="使用目的" value={formData.purpose} onChange={handleChange} required className="w-full p-6 text-2xl border-2 rounded-2xl" />
+            <input name="guest" placeholder="来客者名" value={formData.guest} onChange={handleChange} className="w-full p-6 text-2xl border-2 rounded-2xl" />
 
-            <select name="department" value={formData.department} onChange={handleChange} className="w-full p-4 border rounded">
+            <select name="department" value={formData.department} onChange={handleChange} className="w-full p-6 text-2xl border-2 rounded-2xl">
               <option>新門司手摺</option>
               <option>新門司セラミック</option>
               <option>総務部</option>
@@ -120,55 +127,58 @@ const App = () => {
               <option>その他</option>
             </select>
 
-            <select name="room" value={formData.room} onChange={handleChange} className="w-full p-4 border rounded">
+            <select name="room" value={formData.room} onChange={handleChange} className="w-full p-6 text-2xl border-2 rounded-2xl">
               <option>1階食堂</option>
               <option>2階会議室①</option>
               <option>2階会議室②</option>
               <option>3階応接室</option>
             </select>
 
-            <input type="date" name="date" min={today} value={formData.date} onChange={handleChange} className="w-full p-4 border rounded" />
+            <input type="date" name="date" min={today} value={formData.date} onChange={handleChange} className="w-full p-6 text-2xl border-2 rounded-2xl" />
 
             <div className="flex gap-4">
-              <select name="startTime" value={formData.startTime} onChange={handleChange} className="flex-1 p-4 border rounded">
+              <select name="startTime" value={formData.startTime} onChange={handleChange} className="flex-1 p-6 text-2xl border-2 rounded-2xl">
                 {timeOptions.map(t => <option key={t}>{t}</option>)}
               </select>
-              <select name="endTime" value={formData.endTime} onChange={handleChange} className="flex-1 p-4 border rounded">
+              <select name="endTime" value={formData.endTime} onChange={handleChange} className="flex-1 p-6 text-2xl border-2 rounded-2xl">
                 {timeOptions.map(t => <option key={t}>{t}</option>)}
               </select>
             </div>
 
-            <button className="w-full py-6 text-4xl bg-blue-600 text-white rounded-xl">🚀 予約する</button>
+            <button className="w-full py-6 text-4xl bg-blue-600 text-white rounded-2xl">🚀 予約する</button>
           </form>
         </div>
 
-        {/* ---------- タイムライン ---------- */}
+        {/* タイムライン */}
         <div>
           <h2 className="text-3xl font-semibold mb-6">📅 部屋別タイムライン</h2>
 
-          {Object.entries(groupedReservations()).map(([date, rooms]) => (
-            <div key={date} className="mb-12">
-              <h3 className="text-2xl font-bold mb-4">
-                📅 {new Date(date).toLocaleDateString("ja-JP")}
-              </h3>
+          {Object.entries(grouped).map(([date, rooms]) => (
+            <div key={date} className="mb-10">
+              <h3 className="text-xl font-bold mb-3">{date}</h3>
 
               {Object.entries(rooms).map(([room, entries]) => (
-                <div key={room} className="mb-8 bg-white rounded-xl border">
-                  <div className="p-4 text-2xl font-bold bg-blue-100">🏢 {room}</div>
+                <div key={room} className="mb-6 border rounded-xl bg-white">
+                  <div className="p-3 bg-blue-100 font-bold">{room}</div>
 
                   {timeOptions.map(time => {
                     const r = entries.find(e => e.startTime <= time && e.endTime > time);
                     return (
-                      <div key={time} className="flex items-center border-t h-12">
-                        <div className="w-24 text-center bg-gray-100">{time}</div>
-                        <div className="flex-1 px-4">
+                      <div key={time} className="flex items-center border-t h-9 text-sm">
+                        <div className="w-20 text-center bg-gray-100">{time}</div>
+                        <div className="flex-1 px-2">
                           {r ? (
-                            <div className="bg-blue-500 text-white px-3 py-1 rounded flex justify-between">
-                              <span>{r.name} / {r.purpose}</span>
-                              <button onClick={() => handleDelete(r.id)} className="text-sm underline">削除</button>
+                            <div className="bg-blue-500 text-white px-2 py-1 rounded flex justify-between">
+                              <span>{r.name}</span>
+                              <button onClick={() => handleDelete(r.id)} className="underline">削除</button>
                             </div>
                           ) : (
-                            <span className="text-gray-400">空き</span>
+                            <button
+                              onClick={() => handleEmptyClick(date, room, time)}
+                              className="text-gray-400 hover:text-blue-600"
+                            >
+                              空き
+                            </button>
                           )}
                         </div>
                       </div>
