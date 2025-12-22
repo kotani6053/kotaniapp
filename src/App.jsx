@@ -20,7 +20,7 @@ export default function App() {
   const [end, setEnd] = useState("09:30");
   const [list, setList] = useState([]);
 
-  /* ===== 30分刻み ===== */
+  /* ===== 時刻 ===== */
   const times = [];
   for (let h = 8; h <= 18; h++) {
     ["00", "30"].forEach((m) => {
@@ -96,13 +96,22 @@ export default function App() {
     await deleteDoc(doc(db, "reservations", id));
   };
 
+  /* ===== タイムライン用 ===== */
+  const toMin = (t) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  const START = 8 * 60;
+  const END = 18 * 60;
+  const TOTAL = END - START;
+
   return (
     <div style={pageStyle}>
       <h1 style={titleStyle}>会議室予約</h1>
 
-      {/* ===== 左右レイアウト ===== */}
       <div style={layoutStyle}>
-        {/* ===== 左：入力（広め） ===== */}
+        {/* ===== 左：入力 ===== */}
         <div style={leftStyle}>
           <FormField label="日付">
             <input
@@ -183,18 +192,10 @@ export default function App() {
           </button>
         </div>
 
-        {/* ===== 右：予約一覧 ===== */}
+        {/* ===== 右：予約一覧＋タイムライン ===== */}
         <div style={rightStyle}>
-          {/* 日付表示 */}
           <div style={dateHeaderStyle}>
-            📅{" "}
-            {new Date(date).toLocaleDateString("ja-JP", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-              weekday: "short",
-            })}{" "}
-            の予約
+            📅 {new Date(date).toLocaleDateString("ja-JP")}
           </div>
 
           {rooms.map((roomName) => (
@@ -204,16 +205,13 @@ export default function App() {
               <div style={timelineCardStyle}>
                 {list
                   .filter((r) => r.room === roomName)
-                  .sort((a, b) =>
-                    a.startTime.localeCompare(b.startTime)
-                  )
                   .map((r) => (
                     <div key={r.id} style={rowStyle}>
                       <div>
                         <strong>
                           {r.startTime}〜{r.endTime}
                         </strong>{" "}
-                        ／ {r.name}（{r.department}）
+                        ／ {r.name}
                         <div style={purposeStyle}>
                           使用目的：{r.purpose}
                         </div>
@@ -232,6 +230,50 @@ export default function App() {
               </div>
             </div>
           ))}
+
+          {/* ===== 追加：部屋別タイムライン ===== */}
+          <div style={timelineWrapper}>
+            <h2 style={{ marginBottom: 12 }}>🕒 タイムライン</h2>
+
+            <div style={timeHeader}>
+              {times.map((t) => (
+                <div key={t} style={timeCell}>
+                  {t}
+                </div>
+              ))}
+            </div>
+
+            {rooms.map((roomName) => (
+              <div key={roomName} style={timelineRow}>
+                <div style={roomLabel}>{roomName}</div>
+                <div style={timelineLine}>
+                  {list
+                    .filter((r) => r.room === roomName)
+                    .map((r) => {
+                      const left =
+                        ((toMin(r.startTime) - START) / TOTAL) * 100;
+                      const width =
+                        ((toMin(r.endTime) - toMin(r.startTime)) /
+                          TOTAL) *
+                        100;
+
+                      return (
+                        <div
+                          key={r.id}
+                          style={{
+                            ...barStyle,
+                            left: `${left}%`,
+                            width: `${width}%`,
+                          }}
+                        >
+                          {r.purpose}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -249,104 +291,68 @@ const FormField = ({ label, children }) => (
 );
 
 /* ===== style ===== */
-const pageStyle = {
-  background: "#f5f6f8",
-  minHeight: "100vh",
-  padding: 24,
-  fontFamily: "system-ui, sans-serif",
-};
-
-const titleStyle = {
-  textAlign: "center",
-  fontSize: 24,
-  marginBottom: 20,
-};
-
-const layoutStyle = {
-  display: "flex",
-  gap: 24,
-  alignItems: "flex-start",
-  flexWrap: "wrap",
-};
-
-/* ★ 左を広く */
+const pageStyle = { background: "#f5f6f8", minHeight: "100vh", padding: 24 };
+const titleStyle = { textAlign: "center", fontSize: 24, marginBottom: 20 };
+const layoutStyle = { display: "flex", gap: 24, alignItems: "flex-start" };
 const leftStyle = {
   flex: "0 0 520px",
   background: "#fff",
   borderRadius: 12,
   padding: 24,
-  boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
 };
-
-const rightStyle = {
-  flex: 1,
-  minWidth: 360,
-};
-
-const dateHeaderStyle = {
-  fontSize: 16,
-  fontWeight: 600,
-  marginBottom: 16,
-};
-
-const fieldStyle = {
-  width: "100%",
-  height: 42,
-  borderRadius: 8,
-  border: "1px solid #ccc",
-  padding: "0 10px",
-
-  /* ★ これがないと幅が揃わない */
-  boxSizing: "border-box",
-
-  /* ★ date / select の暴走を止める */
-  appearance: "none",
-  WebkitAppearance: "none",
-  MozAppearance: "none",
-};
-
-
+const rightStyle = { flex: 1 };
+const dateHeaderStyle = { fontSize: 16, marginBottom: 12 };
+const fieldStyle = { width: "100%", height: 42, borderRadius: 8 };
 const buttonStyle = {
   width: "100%",
   height: 46,
-  marginTop: 16,
-  borderRadius: 8,
   background: "#16a34a",
   color: "#fff",
-  border: "none",
-  fontWeight: 600,
-  cursor: "pointer",
+  borderRadius: 8,
 };
-
 const roomBlock = { marginBottom: 20 };
+const roomTitleStyle = { fontSize: 16 };
+const timelineCardStyle = { background: "#fff", borderRadius: 10 };
+const rowStyle = { display: "flex", justifyContent: "space-between", padding: 10 };
+const purposeStyle = { fontSize: 12 };
+const deleteStyle = { background: "none", border: "none", color: "#dc2626" };
+const emptyStyle = { padding: 12, color: "#999" };
 
-const roomTitleStyle = { fontSize: 16, marginBottom: 6 };
-
-const timelineCardStyle = {
+/* ===== タイムライン ===== */
+const timelineWrapper = {
+  marginTop: 40,
   background: "#fff",
-  borderRadius: 10,
-  boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+  padding: 16,
+  borderRadius: 12,
 };
 
-const rowStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  padding: "10px 12px",
-  borderBottom: "1px solid #eee",
-  fontSize: 14,
+const timeHeader = { display: "flex", marginLeft: 120 };
+const timeCell = {
+  flex: 1,
+  fontSize: 10,
+  textAlign: "center",
+  color: "#666",
 };
 
-const purposeStyle = { fontSize: 12, color: "#555" };
-
-const deleteStyle = {
-  background: "none",
-  border: "none",
-  color: "#dc2626",
-  cursor: "pointer",
+const timelineRow = { display: "flex", marginBottom: 14 };
+const roomLabel = { width: 120, fontSize: 13 };
+const timelineLine = {
+  position: "relative",
+  flex: 1,
+  height: 32,
+  background: "#f1f5f9",
+  borderRadius: 6,
 };
 
-const emptyStyle = {
-  padding: 12,
-  fontSize: 13,
-  color: "#999",
+const barStyle = {
+  position: "absolute",
+  top: 4,
+  height: 24,
+  background: "#60a5fa",
+  color: "#fff",
+  fontSize: 11,
+  padding: "0 6px",
+  borderRadius: 6,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
 };
