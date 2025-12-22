@@ -19,7 +19,6 @@ export default function App() {
   const [end, setEnd] = useState("09:30");
   const [list, setList] = useState([]);
 
-  /* ===== 30分刻み ===== */
   const times = [];
   for (let h = 8; h <= 18; h++) {
     ["00", "30"].forEach((m) => {
@@ -43,21 +42,21 @@ export default function App() {
   ];
 
   useEffect(() => {
-    return onSnapshot(collection(db, "reservations"), (snap) => {
+    const unsub = onSnapshot(collection(db, "reservations"), (snap) => {
       const data = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .filter((r) => r.date === today);
       setList(data);
     });
+    return () => unsub();
   }, []);
 
-  const isOverlapping = () => {
-    return list.some(
+  const isOverlapping = () =>
+    list.some(
       (r) =>
         r.room === room &&
         !(end <= r.startTime || start >= r.endTime)
     );
-  };
 
   const addReservation = async () => {
     if (!name) return alert("名前を入力してください");
@@ -90,74 +89,81 @@ export default function App() {
     <div style={pageStyle}>
       <h1 style={titleStyle}>会議室予約（本日）</h1>
 
-      {/* ===== 入力 ===== */}
-      <div style={cardStyle}>
-        <input
-          placeholder="名前"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={inputStyle}
-        />
+      <div style={formContainer}>
+        {/* 全フィールドを同じ幅に統一 */}
+        <FormField label="名前">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={fieldStyle}
+          />
+        </FormField>
 
-        <select
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          style={inputStyle}
-        >
-          {departments.map((d) => (
-            <option key={d}>{d}</option>
-          ))}
-        </select>
+        <FormField label="所属">
+          <select
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            style={fieldStyle}
+          >
+            {departments.map((d) => (
+              <option key={d}>{d}</option>
+            ))}
+          </select>
+        </FormField>
 
-        <input
-          placeholder="使用目的"
-          value={purpose}
-          onChange={(e) => setPurpose(e.target.value)}
-          style={inputStyle}
-        />
+        <FormField label="使用目的">
+          <input
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value)}
+            style={fieldStyle}
+          />
+        </FormField>
 
-        <select
-          value={room}
-          onChange={(e) => setRoom(e.target.value)}
-          style={inputStyle}
-        >
-          {rooms.map((r) => (
-            <option key={r}>{r}</option>
-          ))}
-        </select>
+        <FormField label="部屋">
+          <select
+            value={room}
+            onChange={(e) => setRoom(e.target.value)}
+            style={fieldStyle}
+          >
+            {rooms.map((r) => (
+              <option key={r}>{r}</option>
+            ))}
+          </select>
+        </FormField>
 
-        {/* ★ 時間（ラベル付きで幅ズレ防止） */}
-        <label style={labelStyle}>開始時間</label>
-        <select
-          value={start}
-          onChange={(e) => setStart(e.target.value)}
-          style={inputStyle}
-        >
-          {times.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
+        <FormField label="開始時間">
+          <select
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+            style={fieldStyle}
+          >
+            {times.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+        </FormField>
 
-        <label style={labelStyle}>終了時間</label>
-        <select
-          value={end}
-          onChange={(e) => setEnd(e.target.value)}
-          style={inputStyle}
-        >
-          {times.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
+        <FormField label="終了時間">
+          <select
+            value={end}
+            onChange={(e) => setEnd(e.target.value)}
+            style={fieldStyle}
+          >
+            {times.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+        </FormField>
 
         <button onClick={addReservation} style={buttonStyle}>
           予約する
         </button>
       </div>
 
-      {/* ===== 一覧 ===== */}
-      <div style={{ maxWidth: 720, margin: "0 auto" }}>
+      {/* 予約一覧 */}
+      <div style={listContainer}>
         {rooms.map((roomName) => (
-          <div key={roomName} style={{ marginBottom: 28 }}>
+          <div key={roomName} style={roomBlock}>
             <h2 style={roomTitleStyle}>{roomName}</h2>
 
             <div style={timelineCardStyle}>
@@ -185,7 +191,6 @@ export default function App() {
                     </button>
                   </div>
                 ))}
-
               {list.filter((r) => r.room === roomName).length === 0 && (
                 <div style={emptyStyle}>予約なし</div>
               )}
@@ -197,7 +202,15 @@ export default function App() {
   );
 }
 
-/* ===== styles ===== */
+/* ===== 共通コンポーネント ===== */
+const FormField = ({ label, children }) => (
+  <div style={fieldGroup}>
+    <label style={labelText}>{label}</label>
+    {children}
+  </div>
+);
+
+/* ===== style ===== */
 const pageStyle = {
   minHeight: "100vh",
   background: "#f5f6f8",
@@ -209,10 +222,10 @@ const titleStyle = {
   textAlign: "center",
   fontSize: 26,
   fontWeight: 600,
-  marginBottom: 30,
+  marginBottom: 20,
 };
 
-const cardStyle = {
+const formContainer = {
   maxWidth: 560,
   margin: "0 auto 40px",
   background: "#fff",
@@ -221,18 +234,22 @@ const cardStyle = {
   boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
 };
 
-const labelStyle = {
-  fontSize: 13,
-  color: "#555",
-  marginBottom: 4,
+const fieldGroup = {
+  marginBottom: 12,
 };
 
-const inputStyle = {
+const labelText = {
+  fontSize: 14,
+  marginBottom: 4,
+  display: "block",
+};
+
+const fieldStyle = {
   width: "100%",
+  boxSizing: "border-box", // すべて同じ幅にするため必須 :contentReference[oaicite:2]{index=2}
   height: 42,
   fontSize: 15,
   padding: "0 10px",
-  marginBottom: 12,
   borderRadius: 8,
   border: "1px solid #ccc",
 };
@@ -243,11 +260,20 @@ const buttonStyle = {
   height: 46,
   borderRadius: 8,
   border: "none",
-  background: "#16a34a", // ← 緑
+  background: "#16a34a",
   color: "#fff",
   fontSize: 16,
   fontWeight: 600,
   cursor: "pointer",
+};
+
+const listContainer = {
+  maxWidth: 720,
+  margin: "0 auto",
+};
+
+const roomBlock = {
+  marginBottom: 28,
 };
 
 const roomTitleStyle = {
