@@ -11,9 +11,9 @@ import {
 } from "firebase/firestore";
 
 export default function App() {
-  const today = new Date().toISOString().split("T")[0];
+  const todayStr = new Date().toISOString().split("T")[0];
 
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(todayStr);
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("");
@@ -46,11 +46,17 @@ export default function App() {
     その他: "#6b7280",
   };
 
+  /* 日付操作関数 */
+  const changeDate = (days) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    setDate(d.toISOString().split("T")[0]);
+  };
+
   useEffect(() => {
     const q = query(collection(db, "reservations"), where("date", "==", date));
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      // 時間順にソートしてセット
       const sortedData = data.sort((a, b) => a.startTime.localeCompare(b.startTime));
       setList(sortedData);
     });
@@ -111,22 +117,22 @@ export default function App() {
         <div style={layoutStyle}>
           {/* 左側：入力フォーム */}
           <div style={leftStyle}>
-            <h2 style={{ fontSize: 18, marginBottom: 20, borderBottom: "2px solid #eee", paddingBottom: 10 }}>新規予約</h2>
+            <h2 style={formTitleStyle}>新規予約</h2>
             <FormField label="日付">
-              <input type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
             </FormField>
-            <FormField label="名前">
-              <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="氏名を入力" />
+            <FormField label="予約者名">
+              <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="氏名" />
             </FormField>
             <FormField label="所属部署">
               <select value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle}>
                 {departments.map((d) => <option key={d}>{d}</option>)}
               </select>
             </FormField>
-            <FormField label="使用目的・参加者数">
-              <input value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle} placeholder="例：課内会議（5名）" />
+            <FormField label="目的・参加人数">
+              <input value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle} placeholder="例：定例MTG（5名）" />
             </FormField>
-            <FormField label="会議室を選択">
+            <FormField label="会議室">
               <select value={room} onChange={(e) => setRoom(e.target.value)} style={fieldStyle}>
                 {rooms.map((r) => <option key={r}>{r}</option>)}
               </select>
@@ -143,12 +149,16 @@ export default function App() {
                 </select>
               </FormField>
             </div>
-            <button onClick={addReservation} style={buttonStyle}>この内容で予約する</button>
+            <button onClick={addReservation} style={buttonStyle}>予約を確定する</button>
           </div>
 
-          {/* 右側：タイムラインと詳細リスト */}
+          {/* 右側：表示エリア */}
           <div style={rightStyle}>
-            <div style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")} の予約状況</div>
+            <div style={dateNavStyle}>
+              <button onClick={() => changeDate(-1)} style={navBtnStyle}>◀ 前日</button>
+              <span style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")} の状況</span>
+              <button onClick={() => changeDate(1)} style={navBtnStyle}>翌日 ▶</button>
+            </div>
             
             <div style={timelineWrapper}>
               <div style={timeHeaderRow}>
@@ -175,9 +185,11 @@ export default function App() {
                         return (
                           <div
                             key={r.id}
+                            title={`${r.startTime}〜${r.endTime} ${r.name}`}
                             style={{ ...barStyle, left: `${left}%`, width: `${width}%`, background: deptColors[r.department] }}
                           >
                             <span style={barTextStyle}><strong>{r.name}</strong>: {r.purpose}</span>
+                            <button onClick={() => removeReservation(r.id)} style={miniDeleteBtn}>×</button>
                           </div>
                         );
                       })}
@@ -186,25 +198,25 @@ export default function App() {
               ))}
             </div>
 
-            {/* 部屋ごとの予約詳細リスト */}
+            {/* 部屋ごとの詳細リスト */}
             <div style={{ marginTop: 40 }}>
-              <h2 style={{ fontSize: 20, marginBottom: 20 }}>予約詳細（部屋別）</h2>
+              <h2 style={{ fontSize: 22, marginBottom: 20 }}>予約詳細（部屋別）</h2>
               {rooms.map(roomName => (
-                <div key={roomName} style={{ marginBottom: 25 }}>
+                <div key={roomName} style={{ marginBottom: 30 }}>
                   <h3 style={roomListHeader}>{roomName}</h3>
                   {list.filter(r => r.room === roomName).length > 0 ? (
                     list.filter(r => r.room === roomName).map(r => (
                       <div key={r.id} style={listItemStyle}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
                           <span style={timeBadge}>{r.startTime} ～ {r.endTime}</span>
                           <span style={{ ...deptBadge, background: deptColors[r.department] }}>{r.department}</span>
-                          <span style={{ fontSize: 16 }}><strong>{r.name}</strong>：{r.purpose}</span>
+                          <span style={{ fontSize: 17 }}><strong>{r.name}</strong> ／ {r.purpose}</span>
                         </div>
                         <button onClick={() => removeReservation(r.id)} style={deleteBtnStyle}>削除</button>
                       </div>
                     ))
                   ) : (
-                    <p style={{ color: "#999", fontSize: 14, paddingLeft: 10 }}>この部屋の予約はありません</p>
+                    <p style={{ color: "#999", fontSize: 15, paddingLeft: 10 }}>この部屋の予約はありません</p>
                   )}
                 </div>
               ))}
@@ -216,43 +228,46 @@ export default function App() {
   );
 }
 
-/* ===== 共通コンポーネント ===== */
 const FormField = ({ label, children }) => (
-  <div style={{ marginBottom: 18, flex: 1 }}>
-    <label style={{ fontSize: 14, fontWeight: "bold", display: "block", marginBottom: 6, color: "#444" }}>{label}</label>
+  <div style={{ marginBottom: 20, flex: 1 }}>
+    <label style={{ fontSize: 14, fontWeight: "bold", display: "block", marginBottom: 8, color: "#444" }}>{label}</label>
     {children}
   </div>
 );
 
-/* ===== Styles ===== */
-const pageStyle = { background: "#f8f9fa", minHeight: "100vh", padding: "40px 20px", fontFamily: "'Helvetica Neue', Arial, sans-serif" };
-const titleStyle = { textAlign: "center", marginBottom: 10, fontSize: 32, fontWeight: "800", color: "#1a202c" };
-const legendStyle = { display: "flex", justifyContent: "center", gap: 20, marginBottom: 30, background: "#fff", padding: "10px", borderRadius: "30px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
-const layoutStyle = { display: "flex", gap: 30, alignItems: "flex-start" };
+/* Styles */
+const pageStyle = { background: "#f1f3f6", minHeight: "100vh", padding: "40px 20px", fontFamily: "'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif" };
+const titleStyle = { textAlign: "center", marginBottom: 10, fontSize: 34, fontWeight: "900", color: "#1a202c" };
+const legendStyle = { display: "flex", justifyContent: "center", gap: 25, marginBottom: 35, background: "#fff", padding: "12px 25px", borderRadius: "40px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", width: "fit-content", margin: "0 auto 35px" };
+const layoutStyle = { display: "flex", gap: 40, alignItems: "flex-start" };
 
-const leftStyle = { flex: "0 0 350px", background: "#fff", padding: "30px", borderRadius: "15px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", position: "sticky", top: 20 };
+const leftStyle = { flex: "0 0 380px", background: "#fff", padding: "35px", borderRadius: "20px", boxShadow: "0 15px 35px rgba(0,0,0,0.08)", position: "sticky", top: 20 };
+const formTitleStyle = { fontSize: 20, marginBottom: 25, borderBottom: "3px solid #f1f3f6", paddingBottom: 15, fontWeight: "bold" };
 const rightStyle = { flex: 1 };
 
-const fieldStyle = { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #cbd5e0", fontSize: "15px", outline: "none" };
-const buttonStyle = { width: "100%", padding: "15px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "16px", marginTop: "10px", transition: "0.2s" };
+const fieldStyle = { width: "100%", padding: "14px", borderRadius: "10px", border: "1px solid #d1d5db", fontSize: "16px", outline: "none", transition: "0.2s border" };
+const buttonStyle = { width: "100%", padding: "18px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "10px", cursor: "pointer", fontWeight: "bold", fontSize: "18px", marginTop: "15px", boxShadow: "0 4px 12px rgba(37,99,235,0.2)" };
 
-const dateHeaderStyle = { fontSize: 24, fontWeight: "bold", marginBottom: 20, color: "#2d3748" };
-const timelineWrapper = { background: "#fff", padding: "30px 20px", borderRadius: "15px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)" };
+const dateNavStyle = { display: "flex", alignItems: "center", gap: 20, marginBottom: 25 };
+const navBtnStyle = { background: "#fff", border: "1px solid #d1d5db", padding: "10px 18px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", transition: "0.2s" };
+const dateHeaderStyle = { fontSize: 26, fontWeight: "bold", color: "#2d3748" };
 
-const timeHeaderRow = { display: "flex", marginBottom: 15 };
+const timelineWrapper = { background: "#fff", padding: "40px 25px", borderRadius: "20px", boxShadow: "0 15px 35px rgba(0,0,0,0.08)" };
+const timeHeaderRow = { display: "flex", marginBottom: 20 };
 const timeLabelsContainer = { display: "flex", flex: 1, position: "relative" };
-const timeLabelCell = { fontSize: 12, color: "#718096", fontWeight: "600" };
+const timeLabelCell = { fontSize: 13, color: "#718096", fontWeight: "bold" };
 
-const roomRow = { display: "flex", alignItems: "center", marginBottom: 20 };
-const roomLabel = { width: 140, fontSize: 15, fontWeight: "bold", color: "#4a5568" };
-const timelineTrack = { position: "relative", flex: 1, height: 50, background: "#f7fafc", borderRadius: "8px", border: "1px solid #edf2f7", overflow: "hidden" };
+const roomRow = { display: "flex", alignItems: "center", marginBottom: 25 };
+const roomLabel = { width: 140, fontSize: 16, fontWeight: "bold", color: "#4a5568" };
+const timelineTrack = { position: "relative", flex: 1, height: 60, background: "#f8fafc", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" };
 const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1, background: "#e2e8f0" };
 
-const barStyle = { position: "absolute", top: 6, bottom: 6, borderRadius: "6px", color: "#fff", display: "flex", alignItems: "center", padding: "0 12px", fontSize: "12px", zIndex: 2, boxShadow: "0 2px 4px rgba(0,0,0,0.1)" };
-const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const barStyle = { position: "absolute", top: 8, bottom: 8, borderRadius: "8px", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 15px", fontSize: "13px", zIndex: 2, boxShadow: "0 4px 6px rgba(0,0,0,0.15)", minWidth: "40px" };
+const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: "10px" };
+const miniDeleteBtn = { background: "rgba(0,0,0,0.25)", border: "none", color: "#fff", borderRadius: "50%", width: "22px", height: "22px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "14px", flexShrink: 0 };
 
-const roomListHeader = { fontSize: 18, borderLeft: "5px solid #2d3748", paddingLeft: 12, marginBottom: 15, color: "#2d3748" };
-const listItemStyle = { background: "#fff", padding: "15px 20px", borderRadius: "10px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 2px 5px rgba(0,0,0,0.03)" };
-const timeBadge = { background: "#edf2f7", padding: "5px 10px", borderRadius: "5px", fontSize: "14px", fontWeight: "bold", color: "#2d3748", minWidth: "110px", textAlign: "center" };
-const deptBadge = { color: "#fff", padding: "4px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "bold" };
-const deleteBtnStyle = { background: "#fee2e2", color: "#dc2626", border: "none", padding: "8px 15px", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: "bold" };
+const roomListHeader = { fontSize: 20, borderLeft: "6px solid #2d3748", paddingLeft: 15, marginBottom: 20, color: "#2d3748", fontWeight: "bold" };
+const listItemStyle = { background: "#fff", padding: "20px 25px", borderRadius: "12px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 4px 10px rgba(0,0,0,0.04)" };
+const timeBadge = { background: "#2d3748", color: "#fff", padding: "6px 14px", borderRadius: "6px", fontSize: "15px", fontWeight: "bold", minWidth: "120px", textAlign: "center" };
+const deptBadge = { color: "#fff", padding: "5px 10px", borderRadius: "5px", fontSize: "12px", fontWeight: "bold" };
+const deleteBtnStyle = { background: "#fee2e2", color: "#dc2626", border: "none", padding: "10px 20px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontWeight: "bold", transition: "0.2s" };
