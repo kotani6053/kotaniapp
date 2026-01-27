@@ -27,6 +27,7 @@ export default function App() {
   const END_MIN = END_HOUR * 60;
   const TOTAL_MIN = END_MIN - START_MIN;
 
+  // 時間選択肢の生成
   const times = [];
   for (let h = START_HOUR; h <= END_HOUR; h++) {
     ["00", "30"].forEach((m) => {
@@ -145,23 +146,69 @@ export default function App() {
             {/* タイムライン */}
             <div style={timelineCard}>
               <div style={timeHeaderRow}>
-                <div style={{ width: 120 }}></div>
+                {/* 部屋名ラベルの幅(120px)と合わせる */}
+                <div style={{ width: 120, flexShrink: 0 }}></div>
                 <div style={timeLabelsContainer}>
-                  {times.filter((_, i) => i % 2 === 0).map((t) => (
-                    <div key={t} style={{ ...timeLabelCell, width: `${(60 / TOTAL_MIN) * 100}%` }}>{t}</div>
+                  {/* 1時間おきにラベルを表示 */}
+                  {times.filter((t) => t.endsWith(":00")).map((t) => (
+                    <div 
+                      key={t} 
+                      style={{ 
+                        ...timeLabelCell, 
+                        position: "absolute",
+                        left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%`,
+                        transform: "translateX(-50%)" // 文字の中心を時間に合わせる
+                      }}
+                    >
+                      {t}
+                    </div>
                   ))}
+                  {/* 最後の18:00ラベルの後の末尾用（必要に応じて） */}
+                  <div style={{ 
+                    ...timeLabelCell, 
+                    position: "absolute", 
+                    right: 0, 
+                    transform: "translateX(50%)" 
+                  }}>18:00</div>
                 </div>
               </div>
+
               {rooms.map((roomName) => (
                 <div key={roomName} style={roomRow}>
                   <div style={roomLabel}>{roomName}</div>
                   <div style={timelineTrack}>
-                    {times.map((t) => (<div key={t} style={{ ...gridLine, left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%` }} />))}
-                    {list.filter((r) => r.room === roomName).map((r) => (
-                      <div key={r.id} style={{ ...barStyle, left: `${((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100}%`, width: `${((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100}%`, background: deptColors[r.department] }}>
-                        <span style={barTextStyle}><strong>{r.name}</strong>: {r.purpose}</span>
-                      </div>
+                    {/* 背景のグリッド線 */}
+                    {times.map((t) => (
+                      <div 
+                        key={t} 
+                        style={{ 
+                          ...gridLine, 
+                          left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%`,
+                          background: t.endsWith(":00") ? "#e2e8f0" : "#f1f5f9", // 1時間おきに少し濃い線
+                          zIndex: 1
+                        }} 
+                      />
                     ))}
+                    
+                    {/* 予約バー */}
+                    {list.filter((r) => r.room === roomName).map((r) => {
+                      const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
+                      const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
+                      return (
+                        <div 
+                          key={r.id} 
+                          style={{ 
+                            ...barStyle, 
+                            left: `${leftPos}%`, 
+                            width: `${widthVal}%`, 
+                            background: deptColors[r.department],
+                            zIndex: 2 // グリッド線より上に表示
+                          }}
+                        >
+                          <span style={barTextStyle}><strong>{r.name}</strong>: {r.purpose}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -216,21 +263,20 @@ const mainLayout = { display: "flex", gap: 20, height: "calc(100vh - 90px)" };
 const leftStyle = { width: 300, background: "#fff", padding: "20px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", height: "fit-content" };
 const formTitleStyle = { fontSize: 17, marginBottom: 15, borderBottom: "2px solid #f1f5f9", paddingBottom: 8, fontWeight: "bold" };
 
-/* 幅を完全に揃えるためのスタイル設定 */
 const fieldStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px", outline: "none", boxSizing: "border-box" };
 
 const buttonStyle = { width: "100%", padding: "14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "10px", fontWeight: "bold", fontSize: "16px", cursor: "pointer", marginTop: "10px" };
 
 const rightStyle = { flex: 1, display: "flex", flexDirection: "column", gap: 15, height: "100%" };
 const timelineCard = { background: "#fff", padding: "20px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)" };
-const timeHeaderRow = { display: "flex", marginBottom: 10 };
+const timeHeaderRow = { display: "flex", marginBottom: 15, height: 20, position: "relative" };
 const timeLabelsContainer = { display: "flex", flex: 1, position: "relative" };
-const timeLabelCell = { fontSize: 11, color: "#64748b", fontWeight: "bold" };
+const timeLabelCell = { fontSize: 11, color: "#64748b", fontWeight: "bold", whiteSpace: "nowrap" };
 const roomRow = { display: "flex", alignItems: "center", marginBottom: 12 };
-const roomLabel = { width: 120, fontSize: 14, fontWeight: "bold", color: "#334155" };
-const timelineTrack = { position: "relative", flex: 1, height: 42, background: "#f8fafc", borderRadius: "8px", border: "1px solid #f1f5f9", overflow: "hidden" };
-const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1, background: "#f1f5f9" };
-const barStyle = { position: "absolute", top: 5, bottom: 5, borderRadius: "5px", color: "#fff", display: "flex", alignItems: "center", padding: "0 10px", fontSize: "11px", zIndex: 2, boxShadow: "0 2px 4px rgba(0,0,0,0.1)" };
+const roomLabel = { width: 120, fontSize: 14, fontWeight: "bold", color: "#334155", flexShrink: 0 };
+const timelineTrack = { position: "relative", flex: 1, height: 42, background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", overflow: "hidden", boxSizing: "border-box" };
+const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1 };
+const barStyle = { position: "absolute", top: 5, bottom: 5, borderRadius: "5px", color: "#fff", display: "flex", alignItems: "center", padding: "0 10px", fontSize: "11px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)", boxSizing: "border-box", minWidth: "2px" };
 const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 
 const listGridArea = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 15, flex: 1, overflow: "hidden", paddingBottom: "5px" };
