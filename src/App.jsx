@@ -16,9 +16,11 @@ export default function App() {
   const [date, setDate] = useState(todayStr);
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
-  const [purpose, setPurpose] = useState("");
   
-  // 初期値を「会議室」に変更
+  // 利用目的のステートをプルダウン用に変更
+  const [purpose, setPurpose] = useState("会議"); 
+  const [clientName, setClientName] = useState(""); // 来客社名用
+
   const [room, setRoom] = useState("会議室");
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("09:30");
@@ -30,8 +32,17 @@ export default function App() {
   const END_MIN = END_HOUR * 60;
   const TOTAL_MIN = END_MIN - START_MIN;
 
-  // ★ 部屋名を指定のものに変更
   const rooms = ["会議室", "応接室", "空き1", "空き2"];
+  const departments = ["新門司製造部", "新門司セラミック", "総務部", "役員", "その他"];
+  const purposePresets = ["会議", "来客", "面談", "面接", "その他"];
+
+  const deptColors = {
+    新門司製造部: "#3b82f6",
+    新門司セラミック: "#10b981",
+    総務部: "#f59e0b",
+    役員: "#8b5cf6",
+    その他: "#6b7280",
+  };
 
   const times = [];
   for (let h = START_HOUR; h <= END_HOUR; h++) {
@@ -40,15 +51,6 @@ export default function App() {
       times.push(`${String(h).padStart(2, "0")}:${m}`);
     });
   }
-
-  const departments = ["新門司製造部", "新門司セラミック", "総務部", "役員", "その他"];
-  const deptColors = {
-    新門司製造部: "#3b82f6",
-    新門司セラミック: "#10b981",
-    総務部: "#f59e0b",
-    役員: "#8b5cf6",
-    その他: "#6b7280",
-  };
 
   const changeDate = (days) => {
     const d = new Date(date);
@@ -70,12 +72,12 @@ export default function App() {
     return h * 60 + m;
   };
 
-  // 重複チェックロジック（厳密版）
   const isOverlapping = () =>
     list.some(r => r.room === room && !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime)));
 
   const addReservation = async () => {
     if (!name || !purpose) return alert("未入力の項目があります");
+    if (purpose === "来客" && !clientName) return alert("来客社名を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     if (isOverlapping()) return alert(`⚠️既に他の予約が入っています。`);
 
@@ -85,13 +87,14 @@ export default function App() {
         name, 
         department, 
         purpose, 
+        clientName: purpose === "来客" ? clientName : "", // 来客時のみ保存
         room, 
         startTime: start, 
         endTime: end,
         createdAt: new Date()
       });
       setName(""); 
-      setPurpose("");
+      setClientName("");
     } catch (e) {
       alert("予約に失敗しました。");
     }
@@ -136,9 +139,26 @@ export default function App() {
                 {departments.map((d) => <option key={d}>{d}</option>)}
               </select>
             </FormField>
-            <FormField label="使用目的・人数">
-              <input value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle} placeholder="例：定例MTG（4名）" />
+            
+            {/* 利用目的（プルダウン化） */}
+            <FormField label="利用目的">
+              <select value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle}>
+                {purposePresets.map((p) => <option key={p}>{p}</option>)}
+              </select>
             </FormField>
+
+            {/* 来客時のみ表示される社名入力欄 */}
+            {purpose === "来客" && (
+              <FormField label="来客者名（社名）">
+                <input 
+                  value={clientName} 
+                  onChange={(e) => setClientName(e.target.value)} 
+                  style={{...fieldStyle, borderColor: "#2563eb", borderWeight: "2px"}} 
+                  placeholder="株式会社〇〇様" 
+                />
+              </FormField>
+            )}
+
             <FormField label="会議室">
               <select value={room} onChange={(e) => setRoom(e.target.value)} style={fieldStyle}>
                 {rooms.map((r) => <option key={r}>{r}</option>)}
@@ -185,7 +205,9 @@ export default function App() {
                       const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
                       return (
                         <div key={r.id} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department], zIndex: 2 }}>
-                          <span style={barTextStyle}><strong>{r.name}</strong>: {r.purpose}</span>
+                          <span style={barTextStyle}>
+                            <strong>{r.name}</strong>: {r.purpose}{r.clientName ? ` (${r.clientName})` : ""}
+                          </span>
                         </div>
                       );
                     })}
@@ -207,7 +229,7 @@ export default function App() {
                             <span style={{...itemDeptBadge, background: deptColors[r.department]}}>{r.department[0]}</span>
                           </div>
                           <div style={itemName}><strong>{r.name}</strong></div>
-                          <div style={itemPurpose}>{r.purpose}</div>
+                          <div style={itemPurpose}>{r.purpose}{r.clientName && `（${r.clientName}）`}</div>
                         </div>
                         <button onClick={() => removeReservation(r.id)} style={delBtn}>×</button>
                       </div>
@@ -224,7 +246,7 @@ export default function App() {
   );
 }
 
-// （※スタイル・FormFieldコンポーネントは元のコードを継承）
+// ヘルパーコンポーネントとスタイル（変更なし）
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
