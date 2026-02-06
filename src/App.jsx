@@ -1,3 +1,4 @@
+"use client";
 import { useEffect, useState } from "react";
 import { db } from "./firebase";
 import {
@@ -16,7 +17,9 @@ export default function App() {
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("");
-  const [room, setRoom] = useState("1階食堂");
+  
+  // 初期値を「会議室」に変更
+  const [room, setRoom] = useState("会議室");
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("09:30");
   const [list, setList] = useState([]);
@@ -27,7 +30,9 @@ export default function App() {
   const END_MIN = END_HOUR * 60;
   const TOTAL_MIN = END_MIN - START_MIN;
 
-  // 時間選択肢の生成
+  // ★ 部屋名を指定のものに変更
+  const rooms = ["会議室", "応接室", "空き1", "空き2"];
+
   const times = [];
   for (let h = START_HOUR; h <= END_HOUR; h++) {
     ["00", "30"].forEach((m) => {
@@ -36,7 +41,6 @@ export default function App() {
     });
   }
 
-  const rooms = ["1階食堂", "2階会議室①", "2階会議室②", "3階応接室"];
   const departments = ["新門司製造部", "新門司セラミック", "総務部", "役員", "その他"];
   const deptColors = {
     新門司製造部: "#3b82f6",
@@ -66,15 +70,31 @@ export default function App() {
     return h * 60 + m;
   };
 
+  // 重複チェックロジック（厳密版）
   const isOverlapping = () =>
     list.some(r => r.room === room && !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime)));
 
   const addReservation = async () => {
     if (!name || !purpose) return alert("未入力の項目があります");
-    if (toMin(start) >= toMin(end)) return alert("時間が正しくありません");
-    if (isOverlapping()) return alert("同じ時間帯に既に予約があります");
-    await addDoc(collection(db, "reservations"), { date, name, department, purpose, room, startTime: start, endTime: end });
-    setName(""); setPurpose("");
+    if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
+    if (isOverlapping()) return alert(`⚠️既に他の予約が入っています。`);
+
+    try {
+      await addDoc(collection(db, "reservations"), { 
+        date, 
+        name, 
+        department, 
+        purpose, 
+        room, 
+        startTime: start, 
+        endTime: end,
+        createdAt: new Date()
+      });
+      setName(""); 
+      setPurpose("");
+    } catch (e) {
+      alert("予約に失敗しました。");
+    }
   };
 
   const removeReservation = async (id) => {
@@ -85,7 +105,6 @@ export default function App() {
   return (
     <div style={pageStyle}>
       <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-        {/* ヘッダー */}
         <div style={headerSection}>
           <h1 style={titleStyle}>会議室予約システム</h1>
           <div style={legendStyle}>
@@ -104,7 +123,6 @@ export default function App() {
         </div>
 
         <div style={mainLayout}>
-          {/* 左：入力フォーム */}
           <div style={leftStyle}>
             <h2 style={formTitleStyle}>新規予約登録</h2>
             <FormField label="日付選択">
@@ -141,35 +159,17 @@ export default function App() {
             <button onClick={addReservation} style={buttonStyle}>予約を確定する</button>
           </div>
 
-          {/* 右：表示エリア */}
           <div style={rightStyle}>
-            {/* タイムライン */}
             <div style={timelineCard}>
               <div style={timeHeaderRow}>
-                {/* 部屋名ラベルの幅(120px)と合わせる */}
                 <div style={{ width: 120, flexShrink: 0 }}></div>
                 <div style={timeLabelsContainer}>
-                  {/* 1時間おきにラベルを表示 */}
                   {times.filter((t) => t.endsWith(":00")).map((t) => (
-                    <div 
-                      key={t} 
-                      style={{ 
-                        ...timeLabelCell, 
-                        position: "absolute",
-                        left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%`,
-                        transform: "translateX(-50%)" // 文字の中心を時間に合わせる
-                      }}
-                    >
+                    <div key={t} style={{ ...timeLabelCell, position: "absolute", left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%`, transform: "translateX(-50%)" }}>
                       {t}
                     </div>
                   ))}
-                  {/* 最後の18:00ラベルの後の末尾用（必要に応じて） */}
-                  <div style={{ 
-                    ...timeLabelCell, 
-                    position: "absolute", 
-                    right: 0, 
-                    transform: "translateX(50%)" 
-                  }}>18:00</div>
+                  <div style={{ ...timeLabelCell, position: "absolute", right: 0, transform: "translateX(50%)" }}>18:00</div>
                 </div>
               </div>
 
@@ -177,34 +177,14 @@ export default function App() {
                 <div key={roomName} style={roomRow}>
                   <div style={roomLabel}>{roomName}</div>
                   <div style={timelineTrack}>
-                    {/* 背景のグリッド線 */}
                     {times.map((t) => (
-                      <div 
-                        key={t} 
-                        style={{ 
-                          ...gridLine, 
-                          left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%`,
-                          background: t.endsWith(":00") ? "#e2e8f0" : "#f1f5f9", // 1時間おきに少し濃い線
-                          zIndex: 1
-                        }} 
-                      />
+                      <div key={t} style={{ ...gridLine, left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%`, background: t.endsWith(":00") ? "#e2e8f0" : "#f1f5f9", zIndex: 1 }} />
                     ))}
-                    
-                    {/* 予約バー */}
                     {list.filter((r) => r.room === roomName).map((r) => {
                       const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
                       const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
                       return (
-                        <div 
-                          key={r.id} 
-                          style={{ 
-                            ...barStyle, 
-                            left: `${leftPos}%`, 
-                            width: `${widthVal}%`, 
-                            background: deptColors[r.department],
-                            zIndex: 2 // グリッド線より上に表示
-                          }}
-                        >
+                        <div key={r.id} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department], zIndex: 2 }}>
                           <span style={barTextStyle}><strong>{r.name}</strong>: {r.purpose}</span>
                         </div>
                       );
@@ -214,7 +194,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* 部屋別の詳細リスト */}
             <div style={listGridArea}>
               {rooms.map(roomName => (
                 <div key={roomName} style={roomListCard}>
@@ -245,12 +224,11 @@ export default function App() {
   );
 }
 
-/* 共通コンポーネント */
+// （※スタイル・FormFieldコンポーネントは元のコードを継承）
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-/* スタイル定義 */
 const pageStyle = { background: "#f1f5f9", height: "100vh", padding: "15px 20px", fontFamily: "sans-serif", overflow: "hidden" };
 const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
 const titleStyle = { fontSize: 22, fontWeight: "900", margin: 0, color: "#1e293b" };
@@ -258,15 +236,11 @@ const legendStyle = { display: "flex", gap: 15 };
 const dateNavStyle = { display: "flex", alignItems: "center", gap: 12 };
 const dateHeaderStyle = { fontSize: 19, fontWeight: "bold", color: "#1e293b", minWidth: "140px", textAlign: "center" };
 const navBtnStyle = { padding: "6px 14px", cursor: "pointer", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#fff", fontWeight: "bold", fontSize: "12px" };
-
 const mainLayout = { display: "flex", gap: 20, height: "calc(100vh - 90px)" };
 const leftStyle = { width: 300, background: "#fff", padding: "20px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", height: "fit-content" };
 const formTitleStyle = { fontSize: 17, marginBottom: 15, borderBottom: "2px solid #f1f5f9", paddingBottom: 8, fontWeight: "bold" };
-
 const fieldStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px", outline: "none", boxSizing: "border-box" };
-
 const buttonStyle = { width: "100%", padding: "14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "10px", fontWeight: "bold", fontSize: "16px", cursor: "pointer", marginTop: "10px" };
-
 const rightStyle = { flex: 1, display: "flex", flexDirection: "column", gap: 15, height: "100%" };
 const timelineCard = { background: "#fff", padding: "20px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)" };
 const timeHeaderRow = { display: "flex", marginBottom: 15, height: 20, position: "relative" };
@@ -278,7 +252,6 @@ const timelineTrack = { position: "relative", flex: 1, height: 42, background: "
 const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1 };
 const barStyle = { position: "absolute", top: 5, bottom: 5, borderRadius: "5px", color: "#fff", display: "flex", alignItems: "center", padding: "0 10px", fontSize: "11px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)", boxSizing: "border-box", minWidth: "2px" };
 const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-
 const listGridArea = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 15, flex: 1, overflow: "hidden", paddingBottom: "5px" };
 const roomListCard = { background: "#fff", borderRadius: "15px", padding: "12px", display: "flex", flexDirection: "column", boxShadow: "0 4px 15px rgba(0,0,0,0.03)" };
 const roomListTitle = { fontSize: 15, fontWeight: "bold", color: "#1e293b", marginBottom: 10, borderLeft: "4px solid #1e293b", paddingLeft: 8 };
