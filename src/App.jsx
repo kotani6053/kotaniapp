@@ -154,7 +154,7 @@ export default function App() {
                   value={clientName} 
                   onChange={(e) => setClientName(e.target.value)} 
                   style={{...fieldStyle, borderColor: "#2563eb", borderWeight: "2px"}} 
-                  placeholder="株式会社〇〇様" 
+                  placeholder="株式会社〇〇" 
                 />
               </FormField>
             )}
