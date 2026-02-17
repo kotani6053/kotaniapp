@@ -19,7 +19,7 @@ export default function App() {
   
   const [purpose, setPurpose] = useState("会議"); 
   const [clientName, setClientName] = useState(""); 
-  const [guestCount, setGuestCount] = useState("1"); // 参加人数のステート追加
+  const [guestCount, setGuestCount] = useState("1"); 
 
   const [room, setRoom] = useState("会議室");
   const [start, setStart] = useState("09:00");
@@ -88,7 +88,7 @@ export default function App() {
         department, 
         purpose, 
         clientName: purpose === "来客" ? clientName : "",
-        guestCount, // 参加人数を保存
+        guestCount,
         room, 
         startTime: start, 
         endTime: end,
@@ -110,7 +110,6 @@ export default function App() {
   return (
     <div style={pageStyle}>
       <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-        {/* ヘッダー部分は変更なし */}
         <div style={headerSection}>
           <h1 style={titleStyle}>会議室予約システム</h1>
           <div style={legendStyle}>
@@ -129,12 +128,24 @@ export default function App() {
         </div>
 
         <div style={mainLayout}>
-          {/* 左側：登録フォーム */}
           <div style={leftStyle}>
             <h2 style={formTitleStyle}>新規予約登録</h2>
+            
+            {/* ★日付選択項目を復活 */}
+            <FormField label="日付選択">
+              <input 
+                type="date" 
+                value={date} 
+                min={todayStr} 
+                onChange={(e) => setDate(e.target.value)} 
+                style={fieldStyle} 
+              />
+            </FormField>
+
             <FormField label="予約者名">
               <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="氏名" />
             </FormField>
+            
             <FormField label="部署">
               <select value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle}>
                 {departments.map((d) => <option key={d}>{d}</option>)}
@@ -147,7 +158,6 @@ export default function App() {
               </select>
             </FormField>
 
-            {/* ★参加人数追加 */}
             <FormField label="参加人数">
               <select value={guestCount} onChange={(e) => setGuestCount(e.target.value)} style={fieldStyle}>
                 {[...Array(9)].map((_, i) => <option key={i+1} value={String(i+1)}>{i+1}名</option>)}
@@ -186,7 +196,6 @@ export default function App() {
             <button onClick={addReservation} style={buttonStyle}>予約を確定する</button>
           </div>
 
-          {/* 右側：タイムラインとリスト */}
           <div style={rightStyle}>
             <div style={timelineCard}>
               <div style={timeHeaderRow}>
@@ -214,7 +223,6 @@ export default function App() {
                       return (
                         <div key={r.id} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department], zIndex: 2 }}>
                           <span style={barTextStyle}>
-                            {/* ★タイムライン上に人数を表示 */}
                             <strong>{r.name}</strong> ({r.guestCount}名): {r.purpose}{r.clientName ? ` (${r.clientName})` : ""}
                           </span>
                         </div>
@@ -237,7 +245,6 @@ export default function App() {
                             <span style={itemTime}>{r.startTime}-{r.endTime}</span>
                             <span style={{...itemDeptBadge, background: deptColors[r.department]}}>{r.department[0]}</span>
                           </div>
-                          {/* ★リスト表示に人数を追加 */}
                           <div style={itemName}><strong>{r.name}</strong> <span style={{fontSize: "11px", color: "#666"}}>({r.guestCount}名)</span></div>
                           <div style={itemPurpose}>{r.purpose}{r.clientName && `（${r.clientName}）`}</div>
                         </div>
@@ -256,12 +263,11 @@ export default function App() {
   );
 }
 
-// ヘルパーコンポーネント
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-// スタイル（変更なし）
+// CSSスタイル定数（変更なし）
 const pageStyle = { background: "#f1f5f9", height: "100vh", padding: "15px 20px", fontFamily: "sans-serif", overflow: "hidden" };
 const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
 const titleStyle = { fontSize: 22, fontWeight: "900", margin: 0, color: "#1e293b" };
