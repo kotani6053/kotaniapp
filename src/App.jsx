@@ -9,12 +9,18 @@ import {
   doc,
   query,
   where,
-  updateDoc, // 更新用にインポート
+  updateDoc,
 } from "firebase/firestore";
 
 export default function App() {
-  const todayStr = new Date().toISOString().split("T")[0];
-  const [date, setDate] = useState(todayStr);
+  // 日本時間（JST）の今日の日付文字列を取得
+  const getJSTDate = () => {
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+    return jstNow.toISOString().split("T")[0];
+  };
+
+  const [date, setDate] = useState(getJSTDate());
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
@@ -24,8 +30,6 @@ export default function App() {
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("09:30");
   const [list, setList] = useState([]);
-
-  // ★ 編集中のドキュメントIDを管理するステート
   const [editingId, setEditingId] = useState(null);
 
   const START_HOUR = 8;
@@ -58,14 +62,39 @@ export default function App() {
     const d = new Date(date);
     d.setDate(d.getDate() + days);
     setDate(d.toISOString().split("T")[0]);
-    cancelEdit(); // 日付を変えたら編集キャンセル
+    cancelEdit();
   };
 
   useEffect(() => {
     const q = query(collection(db, "reservations"), where("date", "==", date));
     const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setList(data.sort((a, b) => a.startTime.localeCompare(b.startTime)));
+      const rawData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      
+      // 現在の日本時間を取得
+      const now = new Date();
+      const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+      const todayStr = jstNow.toISOString().split("T")[0];
+      const currentTimeStr = jstNow.toISOString().substring(11, 16); // "HH:mm"
+
+      // 今日の日付を表示している場合、終了時間を過ぎたものを自動削除
+      if (date === todayStr) {
+        rawData.forEach(async (res) => {
+          if (res.endTime < currentTimeStr) {
+            try {
+              await deleteDoc(doc(db, "reservations", res.id));
+            } catch (e) {
+              console.error("Auto-delete error:", e);
+            }
+          }
+        });
+      }
+
+      // 表示用リストの更新（終了時間を過ぎたものは除外）
+      const activeRes = rawData
+        .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
+        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+      setList(activeRes);
     });
     return () => unsub();
   }, [date]);
@@ -77,12 +106,11 @@ export default function App() {
 
   const isOverlapping = () =>
     list.some(r => 
-      r.id !== editingId && // ★編集中の自分自身との重複は無視する
+      r.id !== editingId && 
       r.room === room && 
       !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime))
     );
 
-  // ★ 編集ボタンを押した時の処理
   const startEdit = (r) => {
     setEditingId(r.id);
     setName(r.name);
@@ -93,11 +121,9 @@ export default function App() {
     setRoom(r.room);
     setStart(r.startTime);
     setEnd(r.endTime);
-    // スムーズに上までスクロール
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ★ 編集キャンセル
   const cancelEdit = () => {
     setEditingId(null);
     setName("");
@@ -126,11 +152,9 @@ export default function App() {
 
     try {
       if (editingId) {
-        // ★ 編集モードなら更新(updateDoc)
         await updateDoc(doc(db, "reservations", editingId), reservationData);
         alert("予約を更新しました");
       } else {
-        // 新規作成
         await addDoc(collection(db, "reservations"), { ...reservationData, createdAt: new Date() });
       }
       cancelEdit();
@@ -149,7 +173,7 @@ export default function App() {
     <div style={pageStyle}>
       <div style={{ maxWidth: 1600, margin: "0 auto" }}>
         <div style={headerSection}>
-          <h1 style={titleStyle}>会議室予約システム</h1>
+          <h1 style={titleStyle}>会議室予約システム（管理）</h1>
           <div style={legendStyle}>
             {Object.entries(deptColors).map(([dept, color]) => (
               <div key={dept} style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -168,46 +192,38 @@ export default function App() {
         <div style={mainLayout}>
           <div style={leftStyle}>
             <h2 style={formTitleStyle}>{editingId ? "🚩 予約内容を編集" : "新規予約登録"}</h2>
-            
             <FormField label="日付選択">
-              <input type="date" value={date} min={todayStr} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
             </FormField>
-
             <FormField label="予約者名">
               <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="氏名" />
             </FormField>
-            
             <FormField label="部署">
               <select value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle}>
                 {departments.map((d) => <option key={d}>{d}</option>)}
               </select>
             </FormField>
-            
             <FormField label="利用目的">
               <select value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle}>
                 {purposePresets.map((p) => <option key={p}>{p}</option>)}
               </select>
             </FormField>
-
             <FormField label="参加人数">
               <select value={guestCount} onChange={(e) => setGuestCount(e.target.value)} style={fieldStyle}>
                 {[...Array(9)].map((_, i) => <option key={i+1} value={String(i+1)}>{i+1}名</option>)}
                 <option value="10+">10名以上</option>
               </select>
             </FormField>
-
             {purpose === "来客" && (
               <FormField label="来客者名（社名）">
                 <input value={clientName} onChange={(e) => setClientName(e.target.value)} style={{...fieldStyle, borderColor: "#2563eb", borderWidth: "2px"}} placeholder="株式会社〇〇" />
               </FormField>
             )}
-
             <FormField label="会議室">
               <select value={room} onChange={(e) => setRoom(e.target.value)} style={fieldStyle}>
                 {rooms.map((r) => <option key={r}>{r}</option>)}
               </select>
             </FormField>
-
             <div style={{ display: "flex", gap: 10 }}>
               <FormField label="開始">
                 <select value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle}>
@@ -220,7 +236,6 @@ export default function App() {
                 </select>
               </FormField>
             </div>
-
             <button onClick={handleSave} style={{...buttonStyle, background: editingId ? "#f59e0b" : "#2563eb"}}>
               {editingId ? "変更を保存する" : "予約を確定する"}
             </button>
@@ -240,7 +255,6 @@ export default function App() {
                   <div style={{ ...timeLabelCell, position: "absolute", right: 0, transform: "translateX(50%)" }}>18:00</div>
                 </div>
               </div>
-
               {rooms.map((roomName) => (
                 <div key={roomName} style={roomRow}>
                   <div style={roomLabel}>{roomName}</div>
@@ -294,15 +308,12 @@ export default function App() {
   );
 }
 
-// 共通パーツ
+// 共通パーツ・スタイル（変更なし）
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-// 追加のスタイル
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
-
-// CSSスタイル定数（変更なしの部分は維持）
 const pageStyle = { background: "#f1f5f9", height: "100vh", padding: "15px 20px", fontFamily: "sans-serif", overflow: "hidden" };
 const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
 const titleStyle = { fontSize: 22, fontWeight: "900", margin: 0, color: "#1e293b" };
