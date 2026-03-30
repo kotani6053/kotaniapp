@@ -13,7 +13,6 @@ import {
 } from "firebase/firestore";
 
 export default function App() {
-  // 日本時間（JST）の今日の日付文字列を取得
   const getJSTDate = () => {
     const now = new Date();
     const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
@@ -27,8 +26,11 @@ export default function App() {
   const [clientName, setClientName] = useState(""); 
   const [guestCount, setGuestCount] = useState("1"); 
   const [room, setRoom] = useState("会議室");
+  
+  // ★ 時間を自由入力（文字列）として初期化
   const [start, setStart] = useState("09:00");
-  const [end, setEnd] = useState("09:30");
+  const [end, setEnd] = useState("10:00");
+  
   const [list, setList] = useState([]);
   const [editingId, setEditingId] = useState(null);
 
@@ -50,46 +52,29 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  const times = [];
+  // タイムラインの目盛り用（表示専用）
+  const timeLabels = [];
   for (let h = START_HOUR; h <= END_HOUR; h++) {
-    ["00", "30"].forEach((m) => {
-      if (h === END_HOUR && m === "30") return;
-      times.push(`${String(h).padStart(2, "0")}:${m}`);
-    });
+    timeLabels.push(`${String(h).padStart(2, "0")}:00`);
   }
-
-  const changeDate = (days) => {
-    const d = new Date(date);
-    d.setDate(d.getDate() + days);
-    setDate(d.toISOString().split("T")[0]);
-    cancelEdit();
-  };
 
   useEffect(() => {
     const q = query(collection(db, "reservations"), where("date", "==", date));
     const unsub = onSnapshot(q, (snap) => {
       const rawData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      
-      // 現在の日本時間を取得
       const now = new Date();
       const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
       const todayStr = jstNow.toISOString().split("T")[0];
-      const currentTimeStr = jstNow.toISOString().substring(11, 16); // "HH:mm"
+      const currentTimeStr = jstNow.toISOString().substring(11, 16);
 
-      // 今日の日付を表示している場合、終了時間を過ぎたものを自動削除
       if (date === todayStr) {
         rawData.forEach(async (res) => {
           if (res.endTime < currentTimeStr) {
-            try {
-              await deleteDoc(doc(db, "reservations", res.id));
-            } catch (e) {
-              console.error("Auto-delete error:", e);
-            }
+            try { await deleteDoc(doc(db, "reservations", res.id)); } catch (e) { console.error(e); }
           }
         });
       }
 
-      // 表示用リストの更新（終了時間を過ぎたものは除外）
       const activeRes = rawData
         .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
         .sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -100,6 +85,7 @@ export default function App() {
   }, [date]);
 
   const toMin = (t) => {
+    if (!t) return 0;
     const [h, m] = t.split(":").map(Number);
     return h * 60 + m;
   };
@@ -129,6 +115,8 @@ export default function App() {
     setName("");
     setClientName("");
     setGuestCount("1");
+    setStart("09:00");
+    setEnd("10:00");
   };
 
   const handleSave = async () => {
@@ -138,15 +126,9 @@ export default function App() {
     if (isOverlapping()) return alert(`⚠️既に他の予約が入っています。`);
 
     const reservationData = { 
-      date, 
-      name, 
-      department, 
-      purpose, 
+      date, name, department, purpose, 
       clientName: purpose === "来客" ? clientName : "",
-      guestCount,
-      room, 
-      startTime: start, 
-      endTime: end,
+      guestCount, room, startTime: start, endTime: end,
       updatedAt: new Date()
     };
 
@@ -158,9 +140,7 @@ export default function App() {
         await addDoc(collection(db, "reservations"), { ...reservationData, createdAt: new Date() });
       }
       cancelEdit();
-    } catch (e) {
-      alert("保存に失敗しました。");
-    }
+    } catch (e) { alert("保存に失敗しました。"); }
   };
 
   const removeReservation = async (id) => {
@@ -224,18 +204,17 @@ export default function App() {
                 {rooms.map((r) => <option key={r}>{r}</option>)}
               </select>
             </FormField>
+
+            {/* ★ 時間設定を input type="time" に変更 */}
             <div style={{ display: "flex", gap: 10 }}>
-              <FormField label="開始">
-                <select value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle}>
-                  {times.map((t) => <option key={t}>{t}</option>)}
-                </select>
+              <FormField label="開始時刻">
+                <input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle} />
               </FormField>
-              <FormField label="終了">
-                <select value={end} onChange={(e) => setEnd(e.target.value)} style={fieldStyle}>
-                  {times.concat("18:30").map((t) => <option key={t}>{t}</option>)}
-                </select>
+              <FormField label="終了時刻">
+                <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={fieldStyle} />
               </FormField>
             </div>
+
             <button onClick={handleSave} style={{...buttonStyle, background: editingId ? "#f59e0b" : "#2563eb"}}>
               {editingId ? "変更を保存する" : "予約を確定する"}
             </button>
@@ -249,25 +228,26 @@ export default function App() {
               <div style={timeHeaderRow}>
                 <div style={{ width: 120, flexShrink: 0 }}></div>
                 <div style={timeLabelsContainer}>
-                  {times.filter((t) => t.endsWith(":00")).map((t) => (
+                  {timeLabels.map((t) => (
                     <div key={t} style={{ ...timeLabelCell, position: "absolute", left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%`, transform: "translateX(-50%)" }}>{t}</div>
                   ))}
-                  <div style={{ ...timeLabelCell, position: "absolute", right: 0, transform: "translateX(50%)" }}>18:00</div>
                 </div>
               </div>
               {rooms.map((roomName) => (
                 <div key={roomName} style={roomRow}>
                   <div style={roomLabel}>{roomName}</div>
                   <div style={timelineTrack}>
-                    {times.map((t) => (
-                      <div key={t} style={{ ...gridLine, left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%`, background: t.endsWith(":00") ? "#e2e8f0" : "#f1f5f9", zIndex: 1 }} />
-                    ))}
+                    {/* 30分ごとの補助線（背景） */}
+                    {[...Array(21)].map((_, i) => {
+                      const m = START_MIN + (i * 30);
+                      return <div key={i} style={{ ...gridLine, left: `${((m - START_MIN) / TOTAL_MIN) * 100}%`, background: m % 60 === 0 ? "#e2e8f0" : "#f1f5f9", zIndex: 1 }} />;
+                    })}
                     {list.filter((r) => r.room === roomName).map((r) => {
                       const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
                       const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
                       return (
                         <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department], zIndex: 2, cursor: "pointer", border: editingId === r.id ? "3px solid #000" : "none" }}>
-                          <span style={barTextStyle}><strong>{r.name}</strong> ({r.guestCount}名)</span>
+                          <span style={barTextStyle}><strong>{r.name}</strong></span>
                         </div>
                       );
                     })}
@@ -308,11 +288,11 @@ export default function App() {
   );
 }
 
-// 共通パーツ・スタイル（変更なし）
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
+// CSSスタイル（変更なし/一部最適化）
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
 const pageStyle = { background: "#f1f5f9", height: "100vh", padding: "15px 20px", fontFamily: "sans-serif", overflow: "hidden" };
 const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
