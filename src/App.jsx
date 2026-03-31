@@ -13,24 +13,22 @@ import {
 } from "firebase/firestore";
 
 export default function App() {
-  const getJSTDate = () => {
+  // 日本時間（JST）の今日の日付文字列を取得
+  const getInitialJSTDate = () => {
     const now = new Date();
     const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
     return jstNow.toISOString().split("T")[0];
   };
 
-  const [date, setDate] = useState(getJSTDate());
+  const [date, setDate] = useState(getInitialJSTDate());
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
   const [clientName, setClientName] = useState(""); 
   const [guestCount, setGuestCount] = useState("1"); 
   const [room, setRoom] = useState("会議室");
-  
-  // ★ 時間を自由入力（文字列）として初期化
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("10:00");
-  
   const [list, setList] = useState([]);
   const [editingId, setEditingId] = useState(null);
 
@@ -52,16 +50,25 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  // タイムラインの目盛り用（表示専用）
-  const timeLabels = [];
-  for (let h = START_HOUR; h <= END_HOUR; h++) {
-    timeLabels.push(`${String(h).padStart(2, "0")}:00`);
-  }
+  // ★ 日付変更ロジック（ズレ防止の修正版）
+  const changeDate = (days) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const newDateStr = `${y}-${m}-${day}`;
+    
+    setDate(newDateStr);
+    cancelEdit();
+  };
 
   useEffect(() => {
     const q = query(collection(db, "reservations"), where("date", "==", date));
     const unsub = onSnapshot(q, (snap) => {
       const rawData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      
       const now = new Date();
       const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
       const todayStr = jstNow.toISOString().split("T")[0];
@@ -70,7 +77,11 @@ export default function App() {
       if (date === todayStr) {
         rawData.forEach(async (res) => {
           if (res.endTime < currentTimeStr) {
-            try { await deleteDoc(doc(db, "reservations", res.id)); } catch (e) { console.error(e); }
+            try {
+              await deleteDoc(doc(db, "reservations", res.id));
+            } catch (e) {
+              console.error("Auto-delete error:", e);
+            }
           }
         });
       }
@@ -102,8 +113,8 @@ export default function App() {
     setName(r.name);
     setDepartment(r.department);
     setPurpose(r.purpose);
-    setClientName(r.clientName);
-    setGuestCount(r.guestCount);
+    setClientName(r.clientName || "");
+    setGuestCount(r.guestCount || "1");
     setRoom(r.room);
     setStart(r.startTime);
     setEnd(r.endTime);
@@ -126,9 +137,15 @@ export default function App() {
     if (isOverlapping()) return alert(`⚠️既に他の予約が入っています。`);
 
     const reservationData = { 
-      date, name, department, purpose, 
+      date, 
+      name, 
+      department, 
+      purpose, 
       clientName: purpose === "来客" ? clientName : "",
-      guestCount, room, startTime: start, endTime: end,
+      guestCount,
+      room, 
+      startTime: start, 
+      endTime: end,
       updatedAt: new Date()
     };
 
@@ -140,7 +157,9 @@ export default function App() {
         await addDoc(collection(db, "reservations"), { ...reservationData, createdAt: new Date() });
       }
       cancelEdit();
-    } catch (e) { alert("保存に失敗しました。"); }
+    } catch (e) {
+      alert("保存に失敗しました。");
+    }
   };
 
   const removeReservation = async (id) => {
@@ -204,8 +223,8 @@ export default function App() {
                 {rooms.map((r) => <option key={r}>{r}</option>)}
               </select>
             </FormField>
-
-            {/* ★ 時間設定を input type="time" に変更 */}
+            
+            {/* ★ 時間設定を入力式に変更 */}
             <div style={{ display: "flex", gap: 10 }}>
               <FormField label="開始時刻">
                 <input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle} />
@@ -228,26 +247,27 @@ export default function App() {
               <div style={timeHeaderRow}>
                 <div style={{ width: 120, flexShrink: 0 }}></div>
                 <div style={timeLabelsContainer}>
-                  {timeLabels.map((t) => (
-                    <div key={t} style={{ ...timeLabelCell, position: "absolute", left: `${((toMin(t) - START_MIN) / TOTAL_MIN) * 100}%`, transform: "translateX(-50%)" }}>{t}</div>
-                  ))}
+                  {[...Array(11)].map((_, i) => {
+                    const h = START_HOUR + i;
+                    return (
+                      <div key={h} style={{ ...timeLabelCell, position: "absolute", left: `${((i * 60) / TOTAL_MIN) * 100}%`, transform: "translateX(-50%)" }}>{h}:00</div>
+                    );
+                  })}
                 </div>
               </div>
               {rooms.map((roomName) => (
                 <div key={roomName} style={roomRow}>
                   <div style={roomLabel}>{roomName}</div>
                   <div style={timelineTrack}>
-                    {/* 30分ごとの補助線（背景） */}
-                    {[...Array(21)].map((_, i) => {
-                      const m = START_MIN + (i * 30);
-                      return <div key={i} style={{ ...gridLine, left: `${((m - START_MIN) / TOTAL_MIN) * 100}%`, background: m % 60 === 0 ? "#e2e8f0" : "#f1f5f9", zIndex: 1 }} />;
-                    })}
+                    {[...Array(21)].map((_, i) => (
+                      <div key={i} style={{ ...gridLine, left: `${(i * 30 / TOTAL_MIN) * 100}%`, background: i % 2 === 0 ? "#e2e8f0" : "#f1f5f9", zIndex: 1 }} />
+                    ))}
                     {list.filter((r) => r.room === roomName).map((r) => {
                       const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
                       const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
                       return (
                         <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department], zIndex: 2, cursor: "pointer", border: editingId === r.id ? "3px solid #000" : "none" }}>
-                          <span style={barTextStyle}><strong>{r.name}</strong></span>
+                          <span style={barTextStyle}><strong>{r.name}</strong> ({r.guestCount}名)</span>
                         </div>
                       );
                     })}
@@ -292,7 +312,7 @@ const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-// CSSスタイル（変更なし/一部最適化）
+// スタイル定義
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
 const pageStyle = { background: "#f1f5f9", height: "100vh", padding: "15px 20px", fontFamily: "sans-serif", overflow: "hidden" };
 const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
