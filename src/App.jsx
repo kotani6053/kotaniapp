@@ -63,7 +63,7 @@ export default function App() {
   const departments = ["新門司製造部", "新門司セラミック", "総務部", "役員", "その他"];
   const purposePresets = viewMode === "room" 
     ? ["会議", "来客", "面談", "面接", "その他"]
-    : ["納品", "引取", "外出", "現場", "その他"];
+    : ["納品", "引取", "外出", "その他"];
 
   const deptColors = {
     新門司製造部: "#3b82f6",
