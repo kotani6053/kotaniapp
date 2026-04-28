@@ -18,7 +18,7 @@ export default function App() {
   const configs = {
     room: {
       title: "会議室予約システム",
-      collection: "reservations",
+      collection: "reservations", // 元のコレクション名と一致させています
       items: ["会議室", "応接室", "空き1", "空き2"],
       extraLabel: "来客者名（社名）",
       extraPlaceholder: "株式会社〇〇",
@@ -46,9 +46,9 @@ export default function App() {
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
-  const [extraInfo, setExtraInfo] = useState(""); // 来客社名 or 行き先
+  const [extraInfo, setExtraInfo] = useState("");
   const [guestCount, setGuestCount] = useState("1"); 
-  const [selectedItem, setSelectedItem] = useState(current.items[0]);
+  const [selectedItem, setSelectedItem] = useState(configs.room.items[0]);
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("10:00");
   const [list, setList] = useState([]);
@@ -73,11 +73,14 @@ export default function App() {
     その他: "#6b7280",
   };
 
+  // 表示モード（タブ）切り替え時の処理
   useEffect(() => {
     setSelectedItem(current.items[0]);
+    setPurpose(viewMode === "room" ? "会議" : "納品");
     cancelEdit();
   }, [viewMode]);
 
+  // Firebaseデータ取得（リアルタイム監視）
   useEffect(() => {
     const q = query(collection(db, current.collection), where("date", "==", date));
     const unsub = onSnapshot(q, (snap) => {
@@ -87,6 +90,7 @@ export default function App() {
       const todayStr = jstNow.toISOString().split("T")[0];
       const currentTimeStr = jstNow.toISOString().substring(11, 16);
 
+      // 今日以前の終了済み予約を自動削除（オプション）
       if (date === todayStr) {
         rawData.forEach(async (res) => {
           if (res.endTime < currentTimeStr) {
@@ -125,7 +129,7 @@ export default function App() {
   const isOverlapping = () =>
     list.some(r => 
       r.id !== editingId && 
-      r.selectedItem === selectedItem && 
+      (r.selectedItem === selectedItem || r.room === selectedItem) && // 以前のデータ構造(r.room)にも対応
       !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime))
     );
 
@@ -134,9 +138,9 @@ export default function App() {
     setName(r.name);
     setDepartment(r.department);
     setPurpose(r.purpose);
-    setExtraInfo(r.extraInfo || "");
+    setExtraInfo(r.extraInfo || r.clientName || ""); // 以前のclientNameにも対応
     setGuestCount(r.guestCount || "1");
-    setSelectedItem(r.selectedItem);
+    setSelectedItem(r.selectedItem || r.room); // 以前のroomフィールドにも対応
     setStart(r.startTime);
     setEnd(r.endTime);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -153,11 +157,8 @@ export default function App() {
 
   const handleSave = async () => {
     if (!name || !purpose) return alert("未入力の項目があります");
-    // 会議室予約の「来客」時のみ社名必須
     if (viewMode === "room" && purpose === "来客" && !extraInfo) return alert("来客社名を入力してください");
-    // 社用車予約は「行き先」を必須にする
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
-    
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     if (isOverlapping()) return alert(`⚠️既に予約が入っています。`);
 
@@ -166,9 +167,10 @@ export default function App() {
       name, 
       department, 
       purpose, 
-      extraInfo, // 来客社名 or 行き先
+      extraInfo,
       guestCount,
       selectedItem, 
+      room: selectedItem, // 会議室タブレット側が "room" フィールドを見ている場合のための互換性保持
       startTime: start, 
       endTime: end,
       updatedAt: new Date()
@@ -258,7 +260,6 @@ export default function App() {
               </select>
             </FormField>
             
-            {/* 動的入力フィールド（来客社名 または 行き先） */}
             {(viewMode === "car" || (viewMode === "room" && purpose === "来客")) && (
               <FormField label={current.extraLabel}>
                 <input 
@@ -313,7 +314,7 @@ export default function App() {
                     {[...Array(21)].map((_, i) => (
                       <div key={i} style={{ ...gridLine, left: `${(i * 30 / TOTAL_MIN) * 100}%`, background: i % 2 === 0 ? "#e2e8f0" : "#f1f5f9", zIndex: 1 }} />
                     ))}
-                    {list.filter((r) => r.selectedItem === itemName).map((r) => {
+                    {list.filter((r) => (r.selectedItem === itemName || r.room === itemName)).map((r) => {
                       const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
                       const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
                       return (
@@ -332,7 +333,7 @@ export default function App() {
                 <div key={itemName} style={roomListCard}>
                   <h3 style={roomListTitle}>{itemName}</h3>
                   <div style={scrollArea}>
-                    {list.filter(r => r.selectedItem === itemName).map(r => (
+                    {list.filter(r => (r.selectedItem === itemName || r.room === itemName)).map(r => (
                       <div key={r.id} style={{...compactItem, border: editingId === r.id ? "2px solid #f59e0b" : "1px solid #f1f5f9"}}>
                         <div style={{flex:1, minWidth:0}}>
                           <div style={itemHeaderLine}>
@@ -340,7 +341,7 @@ export default function App() {
                             <span style={{...itemDeptBadge, background: deptColors[r.department]}}>{r.department[0]}</span>
                           </div>
                           <div style={itemNameStyle}><strong>{r.name}</strong></div>
-                          <div style={itemPurpose}>{r.purpose}{r.extraInfo && `（${r.extraInfo}）`}</div>
+                          <div style={itemPurpose}>{r.purpose}{(r.extraInfo || r.clientName) && `（${r.extraInfo || r.clientName}）`}</div>
                         </div>
                         <div style={{display: "flex", flexDirection: "column", gap: 4}}>
                            <button onClick={() => startEdit(r)} style={editBtn}>✎</button>
@@ -363,16 +364,16 @@ const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-// --- スタイル (変更なし) ---
+// スタイル (変更なし)
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
-const pageStyle = { background: "#f1f5f9", height: "100vh", padding: "15px 20px", fontFamily: "sans-serif", overflow: "hidden" };
+const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
 const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "0 15px 15px 15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
 const titleStyle = { fontSize: 22, fontWeight: "900", margin: 0, color: "#1e293b" };
 const legendStyle = { display: "flex", gap: 15 };
 const dateNavStyle = { display: "flex", alignItems: "center", gap: 12 };
 const dateHeaderStyle = { fontSize: 19, fontWeight: "bold", color: "#1e293b", minWidth: "140px", textAlign: "center" };
 const navBtnStyle = { padding: "6px 14px", cursor: "pointer", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#fff", fontWeight: "bold", fontSize: "12px" };
-const mainLayout = { display: "flex", gap: 20, height: "calc(100vh - 140px)" };
+const mainLayout = { display: "flex", gap: 20, height: "calc(100vh - 160px)" };
 const leftStyle = { width: 300, background: "#fff", padding: "20px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", height: "fit-content" };
 const formTitleStyle = { fontSize: 17, marginBottom: 15, borderBottom: "2px solid #f1f5f9", paddingBottom: 8, fontWeight: "bold" };
 const fieldStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px", outline: "none", boxSizing: "border-box" };
