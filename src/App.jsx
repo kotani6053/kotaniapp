@@ -19,7 +19,7 @@ export default function App() {
     room: {
       title: "会議室予約システム",
       collection: "reservations", // 元のコレクション名と一致させています
-      items: ["会議室", "応接室", "空き1", "空き2"],
+      items: ["会議室①", "会議室②", "応接室", "食堂"],
       extraLabel: "来客者名（社名）",
       extraPlaceholder: "株式会社〇〇",
       unit: "名",
