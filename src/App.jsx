@@ -18,7 +18,7 @@ export default function App() {
   const configs = {
     room: {
       title: "会議室予約システム",
-      collection: "reservations", // 元のコレクション名と一致させています
+      collection: "reservations",
       items: ["会議室①", "会議室②", "応接室", "食堂"],
       extraLabel: "来客者名（社名）",
       extraPlaceholder: "株式会社〇〇",
@@ -80,33 +80,28 @@ export default function App() {
     cancelEdit();
   }, [viewMode]);
 
-  // Firebaseデータ取得（リアルタイム監視）
+  // Firebaseデータ取得（リアルタイム監視）★自動削除ループを撤去して安全に★
   useEffect(() => {
     const q = query(collection(db, current.collection), where("date", "==", date));
+    
     const unsub = onSnapshot(q, (snap) => {
       const rawData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      
       const now = new Date();
       const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
       const todayStr = jstNow.toISOString().split("T")[0];
       const currentTimeStr = jstNow.toISOString().substring(11, 16);
 
-      // 今日以前の終了済み予約を自動削除（オプション）
-      if (date === todayStr) {
-        rawData.forEach(async (res) => {
-          if (res.endTime < currentTimeStr) {
-            try {
-              await deleteDoc(doc(db, current.collection, res.id));
-            } catch (e) { console.error("Auto-delete error:", e); }
-          }
-        });
-      }
-
+      // 🔴安全策: データベースからは削除せず、アプリ画面上の表示だけで「終了分」を非表示にする
       const activeRes = rawData
         .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
         .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
       setList(activeRes);
+    }, (error) => {
+      console.error("Firestore Listen Error:", error);
     });
+    
     return () => unsub();
   }, [date, viewMode]);
 
@@ -129,7 +124,7 @@ export default function App() {
   const isOverlapping = () =>
     list.some(r => 
       r.id !== editingId && 
-      (r.selectedItem === selectedItem || r.room === selectedItem) && // 以前のデータ構造(r.room)にも対応
+      (r.selectedItem === selectedItem || r.room === selectedItem) && 
       !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime))
     );
 
@@ -138,9 +133,9 @@ export default function App() {
     setName(r.name);
     setDepartment(r.department);
     setPurpose(r.purpose);
-    setExtraInfo(r.extraInfo || r.clientName || ""); // 以前のclientNameにも対応
+    setExtraInfo(r.extraInfo || r.clientName || ""); 
     setGuestCount(r.guestCount || "1");
-    setSelectedItem(r.selectedItem || r.room); // 以前のroomフィールドにも対応
+    setSelectedItem(r.selectedItem || r.room); 
     setStart(r.startTime);
     setEnd(r.endTime);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -170,7 +165,7 @@ export default function App() {
       extraInfo,
       guestCount,
       selectedItem, 
-      room: selectedItem, // 会議室タブレット側が "room" フィールドを見ている場合のための互換性保持
+      room: selectedItem, 
       startTime: start, 
       endTime: end,
       updatedAt: new Date()
@@ -364,7 +359,7 @@ const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-// スタイル (変更なし)
+// スタイル定義（省略・変更なし）
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
 const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
 const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "0 15px 15px 15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
