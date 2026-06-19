@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { db } from "./firebase";
+// ★ パスを2つ上の階層（../../）に修正してビルドエラーを解決！
+import { db } from "../../firebase";
 import {
   collection,
   addDoc,
@@ -73,14 +74,12 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  // 表示モード（タブ）切り替え時の処理
   useEffect(() => {
     setSelectedItem(current.items[0]);
     setPurpose(viewMode === "room" ? "会議" : "納品");
     cancelEdit();
   }, [viewMode]);
 
-  // Firebaseデータ取得（リアルタイム監視）★自動削除ループを撤去して安全に★
   useEffect(() => {
     const q = query(collection(db, current.collection), where("date", "==", date));
     
@@ -92,7 +91,6 @@ export default function App() {
       const todayStr = jstNow.toISOString().split("T")[0];
       const currentTimeStr = jstNow.toISOString().substring(11, 16);
 
-      // 🔴安全策: データベースからは削除せず、アプリ画面上の表示だけで「終了分」を非表示にする
       const activeRes = rawData
         .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
         .sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -131,7 +129,7 @@ export default function App() {
   const startEdit = (r) => {
     setEditingId(r.id);
     setName(r.name);
-    setDepartment(r.department);
+    setDepartment(r.department || r.dept);
     setPurpose(r.purpose);
     setExtraInfo(r.extraInfo || r.clientName || ""); 
     setGuestCount(r.guestCount || "1");
@@ -157,12 +155,16 @@ export default function App() {
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     if (isOverlapping()) return alert(`⚠️既に予約が入っています。`);
 
+    // ★タブレット側のコードに合わせて、キー名（dept, user, clientName等）を両方保存するように補強
     const reservationData = { 
       date, 
       name, 
+      user: name,
       department, 
+      dept: department,
       purpose, 
       extraInfo,
+      clientName: extraInfo,
       guestCount,
       selectedItem, 
       room: selectedItem, 
@@ -313,8 +315,8 @@ export default function App() {
                       const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
                       const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
                       return (
-                        <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department], zIndex: 2, cursor: "pointer", border: editingId === r.id ? "3px solid #000" : "none" }}>
-                          <span style={barTextStyle}><strong>{r.name}</strong> ({r.guestCount}{current.unit})</span>
+                        <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department || r.dept], zIndex: 2, cursor: "pointer", border: editingId === r.id ? "3px solid #000" : "none" }}>
+                          <span style={barTextStyle}><strong>{r.name || r.user}</strong> ({r.guestCount || "1"}{current.unit})</span>
                         </div>
                       );
                     })}
@@ -333,9 +335,9 @@ export default function App() {
                         <div style={{flex:1, minWidth:0}}>
                           <div style={itemHeaderLine}>
                             <span style={itemTime}>{r.startTime}-{r.endTime}</span>
-                            <span style={{...itemDeptBadge, background: deptColors[r.department]}}>{r.department[0]}</span>
+                            <span style={{...itemDeptBadge, background: deptColors[r.department || r.dept]}}>{(r.department || r.dept || "そ")[0]}</span>
                           </div>
-                          <div style={itemNameStyle}><strong>{r.name}</strong></div>
+                          <div style={itemNameStyle}><strong>{r.name || r.user}</strong></div>
                           <div style={itemPurpose}>{r.purpose}{(r.extraInfo || r.clientName) && `（${r.extraInfo || r.clientName}）`}</div>
                         </div>
                         <div style={{display: "flex", flexDirection: "column", gap: 4}}>
@@ -359,7 +361,6 @@ const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-// スタイル定義（省略・変更なし）
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
 const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
 const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "0 15px 15px 15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
