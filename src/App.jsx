@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 // ★ パスを2つ上の階層（../../）に修正してビルドエラーを解決！
-import { db } from "../../firebase";
+import { db } from "./firebase";
 import {
   collection,
   addDoc,
