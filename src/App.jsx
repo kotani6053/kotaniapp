@@ -37,8 +37,8 @@ export default function App() {
 
   const current = configs[viewMode];
 
-  // 【修正】端末設定のJSTをそのまま安全に取得する方式に変更（9時間足すのを廃止）
-  const getInitialJSTDate = () => {
+  // 【安定化】端末の現在の日付をそのまま取得
+  const getInitialDate = () => {
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -46,7 +46,7 @@ export default function App() {
     return `${y}-${m}-${d}`;
   };
 
-  const [date, setDate] = useState(getInitialJSTDate());
+  const [date, setDate] = useState(getInitialDate());
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
@@ -55,7 +55,11 @@ export default function App() {
   const [selectedItem, setSelectedItem] = useState(configs.room.items[0]);
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("10:00");
+  
+  // list（画面表示用）と allRawData（重複チェック用）を分ける
   const [list, setList] = useState([]);
+  const [allRawData, setAllRawData] = useState([]); 
+  
   const [editingId, setEditingId] = useState(null);
 
   // ★ まとめて予約（繰り返し）用のState
@@ -92,8 +96,11 @@ export default function App() {
     const q = query(collection(db, current.collection), where("date", "==", date));
     
     const unsub = onSnapshot(q, (snap) => {
+      // データベースから持ってきた生のデータをすべて保持
       const rawData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setAllRawData(rawData); // ← 重複チェックはこっちを使う
       
+      // 画面のリスト表示用（過去の時間は非表示にする処理）
       const now = new Date();
       const y = now.getFullYear();
       const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -102,12 +109,11 @@ export default function App() {
       
       const currentTimeStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
 
-      // 終了時間を過ぎた過去の予約は非表示（当日のみ適用）
       const activeRes = rawData
         .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
         .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-      setList(activeRes);
+      setList(activeRes); // ← 画面に映すのはこっち
     }, (error) => {
       console.error("Firestore Listen Error:", error);
     });
@@ -131,16 +137,13 @@ export default function App() {
     return h * 60 + m;
   };
 
-  // 【超厳密修正＋デバッグログ追加】
+  // 【完全修正版】重複チェック（バグらないように `allRawData` を使用）
   const isOverlapping = () => {
     const newStart = toMin(start);
     const newEnd = toMin(end);
     
-    console.log("--- 重複チェック開始 ---");
-    console.log(`新規入力: 部屋=${selectedItem}, 時間=${start}～${end} (${newStart}分～${newEnd}分)`);
-
-    // 現在画面に表示されている有効な予約のみを対象にする
-    const hasOverlap = list.some(r => {
+    // 画面の見た目（list）ではなく、その日のデータベース全件（allRawData）と照らし合わせる
+    return allRawData.some(r => {
       // 1. 自身の編集データならスキップ
       if (editingId && r.id === editingId) return false;
       
@@ -148,21 +151,13 @@ export default function App() {
       const targetItem = r.selectedItem || r.room || r.item;
       if (targetItem !== selectedItem) return false; 
 
-      // 3. 時間の重なり判定
+      // 3. 時間の重なり判定（開始と終了の時間が少しでも被っていれば true）
       const existStart = toMin(r.startTime);
       const existEnd = toMin(r.endTime);
 
-      const overlap = newStart < existEnd && newEnd > existStart;
-      
-      if (overlap) {
-        console.warn("⚠️ 以下のデータと重複を検知しました:", r);
-      }
-      return overlap;
+      // ★ 前のコードの「うまく動いていた条件式」をそのまま採用して安全性を確保
+      return !(newEnd <= existStart || newStart >= existEnd);
     });
-
-    console.log("判定結果 (trueで重複あり):", hasOverlap);
-    console.log("------------------------");
-    return hasOverlap;
   };
 
   const startEdit = (r) => {
@@ -195,8 +190,9 @@ export default function App() {
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     
+    // ★ 重複チェックで弾かれた場合
     if (!isRecurring && isOverlapping()) {
-      return alert(`⚠️すでに同じ時間帯に予約が入っています。\n(部屋: ${selectedItem} / 時間: ${start}～${end})`);
+      return alert("⚠️既に同じ時間帯に予約が入っています。時間を変更してください。");
     }
 
     const baseData = { 
