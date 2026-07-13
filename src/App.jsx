@@ -55,6 +55,11 @@ export default function App() {
   const [list, setList] = useState([]);
   const [editingId, setEditingId] = useState(null);
 
+  // ★ まとめて予約（繰り返し）用のState
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringType, setRecurringType] = useState("daily"); // daily(毎日) or weekly(毎週)
+  const [recurringCount, setRecurringCount] = useState(5);     // 繰り返す回数
+
   const START_HOUR = 8;
   const END_HOUR = 18;
   const START_MIN = START_HOUR * 60;
@@ -136,6 +141,7 @@ export default function App() {
     setSelectedItem(r.selectedItem || r.room); 
     setStart(r.startTime);
     setEnd(r.endTime);
+    setIsRecurring(false); // 編集時は繰り返しをオフに
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -146,6 +152,7 @@ export default function App() {
     setGuestCount("1");
     setStart("09:00");
     setEnd("10:00");
+    setIsRecurring(false);
   };
 
   const handleSave = async () => {
@@ -153,11 +160,12 @@ export default function App() {
     if (viewMode === "room" && purpose === "来客" && !extraInfo) return alert("来客社名を入力してください");
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
-    if (isOverlapping()) return alert(`⚠️既に予約が入っています。`);
+    
+    // 単発登録、または編集時の重複チェック
+    if (!isRecurring && isOverlapping()) return alert(`⚠️既に予約が入っています。`);
 
-    // ★タブレット側のコードに合わせて、キー名（dept, user, clientName等）を両方保存するように補強
-    const reservationData = { 
-      date, 
+    // ベースとなる共通データ
+    const baseData = { 
       name, 
       user: name,
       department, 
@@ -175,13 +183,50 @@ export default function App() {
 
     try {
       if (editingId) {
-        await updateDoc(doc(db, current.collection, editingId), reservationData);
+        // 【編集モード】
+        await updateDoc(doc(db, current.collection, editingId), { ...baseData, date });
         alert("予約を更新しました");
+      } else if (isRecurring) {
+        // 【新規・まとめて予約モード】
+        const count = Number(recurringCount);
+        if (isNaN(count) || count < 1 || count > 31) {
+          return alert("繰り返しの回数は1〜31の間で入力してください");
+        }
+
+        if (!window.confirm(`${count}日分の予約をまとめて登録します。よろしいですか？\n（※別日の重複チェックはスキップされます）`)) return;
+
+        let baseDate = new Date(date);
+        
+        for (let i = 0; i < count; i++) {
+          // 日付のフォーマット (YYYY-MM-DD)
+          const y = baseDate.getFullYear();
+          const m = String(baseDate.getMonth() + 1).padStart(2, '0');
+          const d = String(baseDate.getDate()).padStart(2, '0');
+          const targetDateStr = `${y}-${m}-${d}`;
+
+          // 保存処理
+          await addDoc(collection(db, current.collection), { 
+            ...baseData, 
+            date: targetDateStr,
+            createdAt: new Date() 
+          });
+
+          // 次の日付を計算
+          if (recurringType === "daily") {
+            baseDate.setDate(baseDate.getDate() + 1); // 毎日
+          } else {
+            baseDate.setDate(baseDate.getDate() + 7); // 毎週（7日後）
+          }
+        }
+        alert(`${count}件の予約をまとめて登録しました！`);
       } else {
-        await addDoc(collection(db, current.collection), { ...reservationData, createdAt: new Date() });
+        // 【新規・単発予約モード】
+        await addDoc(collection(db, current.collection), { ...baseData, date, createdAt: new Date() });
+        alert("予約を確定しました");
       }
       cancelEdit();
     } catch (e) {
+      console.error(e);
       alert("保存に失敗しました。");
     }
   };
@@ -283,8 +328,40 @@ export default function App() {
               </FormField>
             </div>
 
+            {/* ★★★ 定期・まとめて予約オプションのUI（新規登録時のみ表示） ★★★ */}
+            {!editingId && (
+              <div style={recurringBoxStyle}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: "bold", cursor: "pointer", color: "#1e293b" }}>
+                  <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} style={{ width: 16, height: 16 }} />
+                  定期予約（まとめて登録）にする
+                </label>
+                
+                {isRecurring && (
+                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, paddingLeft: 8, borderLeft: "2px solid #cbd5e1" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                      <span>頻度:</span>
+                      <label><input type="radio" checked={recurringType === "daily"} onChange={() => setRecurringType("daily")} /> 毎日</label>
+                      <label><input type="radio" checked={recurringType === "weekly"} onChange={() => setRecurringType("weekly")} /> 毎週</label>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                      <span>回数:</span>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        max="31" 
+                        value={recurringCount} 
+                        onChange={(e) => setRecurringCount(e.target.value)} 
+                        style={{ width: 60, padding: "4px", borderRadius: "4px", border: "1px solid #cbd5e1", textAlign: "center" }}
+                      />
+                      <span>回分 ({recurringType === "daily" ? "日間" : "週間"})</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <button onClick={handleSave} style={{...buttonStyle, background: editingId ? "#f59e0b" : "#2563eb"}}>
-              {editingId ? "変更を保存する" : "予約を確定する"}
+              {editingId ? "変更を保存する" : isRecurring ? "まとめて予約を確定する" : "予約を確定する"}
             </button>
             {editingId && (
               <button onClick={cancelEdit} style={{...buttonStyle, background: "#6b7280", marginTop: 8}}>キャンセル</button>
@@ -360,6 +437,9 @@ export default function App() {
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
+
+// ★ 定期予約用ボックスのスタイル
+const recurringBoxStyle = { background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px dashed #cbd5e1", marginBottom: "12px", marginTop: "15px" };
 
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
 const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
