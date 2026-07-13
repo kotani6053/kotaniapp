@@ -37,10 +37,13 @@ export default function App() {
 
   const current = configs[viewMode];
 
+  // 【修正】端末設定のJSTをそのまま安全に取得する方式に変更（9時間足すのを廃止）
   const getInitialJSTDate = () => {
     const now = new Date();
-    const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-    return jstNow.toISOString().split("T")[0];
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   };
 
   const [date, setDate] = useState(getInitialJSTDate());
@@ -92,11 +95,14 @@ export default function App() {
       const rawData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       
       const now = new Date();
-      const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-      const todayStr = jstNow.toISOString().split("T")[0];
-      const currentTimeStr = jstNow.toISOString().substring(11, 16);
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${y}-${m}-${d}`;
+      
+      const currentTimeStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
 
-      // 【重要】現在有効な（時間が過ぎていない）予約だけを絞り込む
+      // 終了時間を過ぎた過去の予約は非表示（当日のみ適用）
       const activeRes = rawData
         .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
         .sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -125,26 +131,38 @@ export default function App() {
     return h * 60 + m;
   };
 
-  // 【確実修正】画面に表示されている有効な予約（list）のみを重複チェックの対象にする
+  // 【超厳密修正＋デバッグログ追加】
   const isOverlapping = () => {
     const newStart = toMin(start);
     const newEnd = toMin(end);
     
-    // rawDataではなく、非表示処理が済んだあとの「list」をループさせることで、過去の非表示データとのバッティングを完全に防ぐ
-    return list.some(r => {
-      // 1. 自分自身の編集データなら重複から除外
-      if (r.id === editingId) return false;
+    console.log("--- 重複チェック開始 ---");
+    console.log(`新規入力: 部屋=${selectedItem}, 時間=${start}～${end} (${newStart}分～${newEnd}分)`);
+
+    // 現在画面に表示されている有効な予約のみを対象にする
+    const hasOverlap = list.some(r => {
+      // 1. 自身の編集データならスキップ
+      if (editingId && r.id === editingId) return false;
       
-      // 2. 部屋・車両名の一致チェック
+      // 2. 部屋・車両名が完全に一致しているかチェック
       const targetItem = r.selectedItem || r.room || r.item;
       if (targetItem !== selectedItem) return false; 
 
-      // 3. 時間の重なりチェック
+      // 3. 時間の重なり判定
       const existStart = toMin(r.startTime);
       const existEnd = toMin(r.endTime);
 
-      return newStart < existEnd && newEnd > existStart;
+      const overlap = newStart < existEnd && newEnd > existStart;
+      
+      if (overlap) {
+        console.warn("⚠️ 以下のデータと重複を検知しました:", r);
+      }
+      return overlap;
     });
+
+    console.log("判定結果 (trueで重複あり):", hasOverlap);
+    console.log("------------------------");
+    return hasOverlap;
   };
 
   const startEdit = (r) => {
@@ -177,8 +195,9 @@ export default function App() {
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     
-    // 【ここで画面に映る最新のlistを基準にチェックが走るようになります】
-    if (!isRecurring && isOverlapping()) return alert(`⚠️すでに同じ時間帯に予約が入っています。`);
+    if (!isRecurring && isOverlapping()) {
+      return alert(`⚠️すでに同じ時間帯に予約が入っています。\n(部屋: ${selectedItem} / 時間: ${start}～${end})`);
+    }
 
     const baseData = { 
       name, 
