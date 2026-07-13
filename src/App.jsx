@@ -37,13 +37,29 @@ export default function App() {
 
   const current = configs[viewMode];
 
-  const getInitialJSTDate = () => {
-    const now = new Date();
-    const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-    return jstNow.toISOString().split("T")[0];
+  // 端末のタイムゾーンに影響されない確実なJST（日本時間）を取得する関数
+  const getJSTDateString = (dateObj = new Date()) => {
+    const formatter = new Intl.DateTimeFormat("ja-JP", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+    return formatter.format(dateObj).replace(/\//g, "-");
   };
 
-  const [date, setDate] = useState(getInitialJSTDate());
+  const getJSTTimeString = (dateObj = new Date()) => {
+    const formatter = new Intl.DateTimeFormat("ja-JP", {
+      timeZone: "Asia/Tokyo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    });
+    return formatter.format(dateObj);
+  };
+
+  // ★安全なハイドレーション対応：初期値は固定（2026年固定）、読み込み後に自動で今日にする
+  const [date, setDate] = useState("2026-01-01");
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
@@ -79,6 +95,11 @@ export default function App() {
     その他: "#6b7280",
   };
 
+  // 画面がブラウザに読み込まれた瞬間に「今日の正しい日付」に初期化する（ハイドレーションエラー防止）
+  useEffect(() => {
+    setDate(getJSTDateString());
+  }, []);
+
   useEffect(() => {
     setSelectedItem(current.items[0]);
     setPurpose(viewMode === "room" ? "会議" : "納品");
@@ -86,19 +107,20 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
+    // 初期ダミー日付のときはFirebase通信をスキップしてバグを防ぐ
+    if (date === "2026-01-01") return;
+
     const q = query(collection(db, current.collection), where("date", "==", date));
     
     const unsub = onSnapshot(q, (snap) => {
       const rawData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       
-      const now = new Date();
-      const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-      const todayStr = jstNow.toISOString().split("T")[0];
-      const currentTimeStr = jstNow.toISOString().substring(11, 16);
+      const todayStr = getJSTDateString();
+      const currentTimeStr = getJSTTimeString();
 
       const activeRes = rawData
         .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
-        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+        .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
 
       setList(activeRes);
     }, (error) => {
@@ -111,10 +133,7 @@ export default function App() {
   const changeDate = (days) => {
     const d = new Date(date);
     d.setDate(d.getDate() + days);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    setDate(`${y}-${m}-${day}`);
+    setDate(getJSTDateString(d));
     cancelEdit();
   };
 
@@ -133,16 +152,18 @@ export default function App() {
 
   const startEdit = (r) => {
     setEditingId(r.id);
-    setName(r.name);
-    setDepartment(r.department || r.dept);
-    setPurpose(r.purpose);
+    setName(r.name || r.user || "");
+    setDepartment(r.department || r.dept || "新門司製造部");
+    setPurpose(r.purpose || "");
     setExtraInfo(r.extraInfo || r.clientName || ""); 
     setGuestCount(r.guestCount || "1");
-    setSelectedItem(r.selectedItem || r.room); 
-    setStart(r.startTime);
-    setEnd(r.endTime);
+    setSelectedItem(r.selectedItem || r.room || current.items[0]); 
+    setStart(r.startTime || "09:00");
+    setEnd(r.endTime || "10:00");
     setIsRecurring(false); // 編集時は繰り返しをオフに
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const cancelEdit = () => {
@@ -161,10 +182,8 @@ export default function App() {
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     
-    // 単発登録、または編集時の重複チェック
     if (!isRecurring && isOverlapping()) return alert(`⚠️既に予約が入っています。`);
 
-    // ベースとなる共通データ
     const baseData = { 
       name, 
       user: name,
@@ -183,35 +202,27 @@ export default function App() {
 
     try {
       if (editingId) {
-        // 【編集モード】
         await updateDoc(doc(db, current.collection, editingId), { ...baseData, date });
         alert("予約を更新しました");
       } else if (isRecurring) {
-        // 【新規・まとめて予約モード】
         const count = Number(recurringCount);
         if (isNaN(count) || count < 1 || count > 31) {
           return alert("繰り返しの回数は1〜31の間で入力してください");
         }
 
-        if (!window.confirm(`${count}日分の予約をまとめて登録します。よろしいですか？\n（※別日の重複チェックはスキップされます）`)) return;
+        if (typeof window !== "undefined" && !window.confirm(`${count}日分の予約をまとめて登録します。よろしいですか？\n（※別日の重複チェックはスキップされます）`)) return;
 
         let baseDate = new Date(date);
         
         for (let i = 0; i < count; i++) {
-          // 日付のフォーマット (YYYY-MM-DD)
-          const y = baseDate.getFullYear();
-          const m = String(baseDate.getMonth() + 1).padStart(2, '0');
-          const d = String(baseDate.getDate()).padStart(2, '0');
-          const targetDateStr = `${y}-${m}-${d}`;
+          const targetDateStr = getJSTDateString(baseDate);
 
-          // 保存処理
           await addDoc(collection(db, current.collection), { 
             ...baseData, 
             date: targetDateStr,
             createdAt: new Date() 
           });
 
-          // 次の日付を計算
           if (recurringType === "daily") {
             baseDate.setDate(baseDate.getDate() + 1); // 毎日
           } else {
@@ -220,7 +231,6 @@ export default function App() {
         }
         alert(`${count}件の予約をまとめて登録しました！`);
       } else {
-        // 【新規・単発予約モード】
         await addDoc(collection(db, current.collection), { ...baseData, date, createdAt: new Date() });
         alert("予約を確定しました");
       }
@@ -232,7 +242,7 @@ export default function App() {
   };
 
   const removeReservation = async (id) => {
-    if (!window.confirm("この予約を削除してもよろしいですか？")) return;
+    if (typeof window !== "undefined" && !window.confirm("この予約を削除してもよろしいですか？")) return;
     await deleteDoc(doc(db, current.collection, id));
     if (editingId === id) cancelEdit();
   };
@@ -392,7 +402,7 @@ export default function App() {
                       const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
                       const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
                       return (
-                        <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department || r.dept], zIndex: 2, cursor: "pointer", border: editingId === r.id ? "3px solid #000" : "none" }}>
+                        <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department || r.dept] || "#6b7280", zIndex: 2, cursor: "pointer", border: editingId === r.id ? "3px solid #000" : "none" }}>
                           <span style={barTextStyle}><strong>{r.name || r.user}</strong> ({r.guestCount || "1"}{current.unit})</span>
                         </div>
                       );
@@ -412,12 +422,12 @@ export default function App() {
                         <div style={{flex:1, minWidth:0}}>
                           <div style={itemHeaderLine}>
                             <span style={itemTime}>{r.startTime}-{r.endTime}</span>
-                            <span style={{...itemDeptBadge, background: deptColors[r.department || r.dept]}}>{(r.department || r.dept || "そ")[0]}</span>
+                            <span style={{...itemDeptBadge, background: deptColors[r.department || r.dept] || "#6b7280"}}>{(r.department || r.dept || "そ")[0]}</span>
                           </div>
                           <div style={itemNameStyle}><strong>{r.name || r.user}</strong></div>
                           <div style={itemPurpose}>{r.purpose}{(r.extraInfo || r.clientName) && `（${r.extraInfo || r.clientName}）`}</div>
                         </div>
-                        <div style={{display: "flex", flexDirection: "column", gap: 4}}>
+                        <div style={{display: "flex", flexDirection: "column", gap: 4, marginLeft: 8}}>
                            <button onClick={() => startEdit(r)} style={editBtn}>✎</button>
                            <button onClick={() => removeReservation(r.id)} style={delBtn}>×</button>
                         </div>
@@ -438,9 +448,8 @@ const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-// ★ 定期予約用ボックスのスタイル
+// ★ 各種スタイルの定義群（デザインを完全に維持）
 const recurringBoxStyle = { background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px dashed #cbd5e1", marginBottom: "12px", marginTop: "15px" };
-
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
 const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
 const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "0 15px 15px 15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
