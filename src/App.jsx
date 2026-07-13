@@ -58,8 +58,7 @@ export default function App() {
     return formatter.format(dateObj);
   };
 
-  // ★ハイドレーションエラー防止：初期値は固定値か空文字にし、マウント後にuseEffectで時間をセットする
-  const [isMounted, setIsMounted] = useState(false);
+  // ★安全なハイドレーション対応：初期値は固定の文字列にしておきます
   const [date, setDate] = useState("2026-01-01"); 
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
@@ -95,9 +94,8 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  // ★ブラウザにマウント（読込完了）されたタイミングで、正しい今日の日付をセット
+  // ★画面がブラウザに読み込まれたら、即座に「今日の正しい日本時間」に上書きする
   useEffect(() => {
-    setIsMounted(true);
     setDate(getJSTDateString());
   }, []);
 
@@ -108,7 +106,8 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
-    if (!isMounted) return; // マウント前はFirestoreの監視をスキップ
+    // 初期状態のダミー日付（2026-01-01）のときはFirestoreへの通信をスキップ
+    if (date === "2026-01-01") return;
 
     const q = query(collection(db, current.collection), where("date", "==", date));
     
@@ -134,7 +133,7 @@ export default function App() {
     });
     
     return () => unsub();
-  }, [date, viewMode, isMounted]);
+  }, [date, viewMode]);
 
   const changeDate = (days) => {
     const d = new Date(date);
@@ -259,6 +258,48 @@ export default function App() {
     if (editingId === id) cancelEdit();
   };
 
+  // スタイルの定義（※環境に応じて適宜定義またはインポートしてください）
+  const pageStyle = { padding: "20px", background: "#f8fafc", minHeight: "100vh", fontFamily: "sans-serif" };
+  const headerSection = { background: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", marginBottom: "20px" };
+  const titleStyle = { margin: "0 0 10px 0", fontSize: "24px", color: "#1e293b" };
+  const legendStyle = { display: "flex", gap: "15px", flexWrap: "wrap", marginBottom: "15px" };
+  const dateNavStyle = { display: "flex", alignItems: "center", gap: "15px" };
+  const dateHeaderStyle = { fontSize: "18px", fontWeight: "bold", color: "#334155" };
+  const navBtnStyle = { padding: "6px 12px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" };
+  
+  const mainLayout = { display: "flex", gap: "20px", flexWrap: "wrap" };
+  const leftStyle = { flex: "1 1 350px", background: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", height: "fit-content" };
+  const rightStyle = { flex: "3 1 600px", display: "flex", flexDirection: "column", gap: "20px" };
+  
+  const formTitleStyle = { margin: "0 0 15px 0", fontSize: "18px", color: "#1e293b" };
+  const fieldStyle = { width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "14px", boxSizing: "border-box" };
+  const buttonStyle = { width: "100%", padding: "12px", border: "none", borderRadius: "6px", color: "#fff", fontWeight: "bold", fontSize: "15px", cursor: "pointer", marginTop: "10px" };
+  const recurringBoxStyle = { background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", margin: "10px 0" };
+
+  const timelineCard = { background: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
+  const timeHeaderRow = { display: "flex", marginBottom: "10px" };
+  const timeLabelsContainer = { flex: 1, position: "relative", height: "20px" };
+  const timeLabelCell = { fontSize: "12px", color: "#64748b", fontWeight: "bold" };
+  const roomRow = { display: "flex", alignItems: "center", marginBottom: "10px" };
+  const roomLabel = { width: "120px", flexShrink: 0, fontSize: "14px", fontWeight: "bold", color: "#334155" };
+  const timelineTrack = { flex: 1, height: "40px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", position: "relative", overflow: "hidden" };
+  const gridLine = { position: "absolute", top: 0, bottom: 0, width: "1px" };
+  const barStyle = { position: "absolute", top: "4px", bottom: "4px", borderRadius: "4px", display: "flex", alignItems: "center", padding: "0 8px", color: "#fff", overflow: "hidden" };
+  const barTextStyle = { fontSize: "11px", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" };
+
+  const listGridArea = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "15px" };
+  const roomListCard = { background: "#fff", padding: "15px", borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
+  const roomListTitle = { margin: "0 0 10px 0", fontSize: "15px", color: "#334155", borderBottom: "2px solid #e2e8f0", paddingBottom: "4px" };
+  const scrollArea = { maxHeight: "240px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" };
+  const compactItem = { padding: "10px", borderRadius: "8px", background: "#fff", display: "flex", alignItems: "center", gap: "10px" };
+  const itemHeaderLine = { display: "flex", alignItems: "center", gap: "6px", marginBottom: "20px" };
+  const itemTime = { fontSize: "12px", fontWeight: "bold", color: "#1e293b" };
+  const itemDeptBadge = { width: "18px", height: "18px", borderRadius: "50%", color: "#fff", display: "flex", alignItems: "center", justifyInverted: "center", fontSize: "10px", fontWeight: "bold", justifyContent: "center" };
+  const itemNameStyle = { fontSize: "14px", color: "#334155", marginBottom: "2px" };
+  const itemPurpose = { fontSize: "12px", color: "#64748b" };
+  const editBtn = { background: "#f1f5f9", border: "none", borderRadius: "4px", width: "24px", height: "24px", cursor: "pointer", fontSize: "12px" };
+  const delBtn = { background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "4px", width: "24px", height: "24px", cursor: "pointer", fontSize: "14px", fontWeight: "bold" };
+
   const tabBtnStyle = (isActive) => ({
     padding: "10px 24px",
     cursor: "pointer",
@@ -272,8 +313,12 @@ export default function App() {
     transition: "0.2s"
   });
 
-  // クライアント側でマウントされるまでは何もレンダリングしない（ハイドレーションエラーを確実に防ぐ）
-  if (!isMounted) return null;
+  const FormField = ({ label, children }) => (
+    <div style={{ marginBottom: "12px" }}>
+      <label style={{ display: "block", fontSize: "13px", fontWeight: "bold", color: "#475569", marginBottom: "4px" }}>{label}</label>
+      {children}
+    </div>
+  );
 
   return (
     <div style={pageStyle}>
