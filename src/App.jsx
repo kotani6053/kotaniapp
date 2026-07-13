@@ -37,29 +37,13 @@ export default function App() {
 
   const current = configs[viewMode];
 
-  // 端末のタイムゾーンに影響されない確実なJST（日本時間）の取得
-  const getJSTDateString = (dateObj = new Date()) => {
-    const formatter = new Intl.DateTimeFormat("ja-JP", {
-      timeZone: "Asia/Tokyo",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    });
-    return formatter.format(dateObj).replace(/\//g, "-");
+  const getInitialJSTDate = () => {
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+    return jstNow.toISOString().split("T")[0];
   };
 
-  const getJSTTimeString = (dateObj = new Date()) => {
-    const formatter = new Intl.DateTimeFormat("ja-JP", {
-      timeZone: "Asia/Tokyo",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false
-    });
-    return formatter.format(dateObj);
-  };
-
-  // ★安全なハイドレーション対応：初期値は固定の文字列にしておきます
-  const [date, setDate] = useState("2026-01-01"); 
+  const [date, setDate] = useState(getInitialJSTDate());
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
@@ -70,10 +54,6 @@ export default function App() {
   const [end, setEnd] = useState("10:00");
   const [list, setList] = useState([]);
   const [editingId, setEditingId] = useState(null);
-
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringType, setRecurringType] = useState("daily");
-  const [recurringCount, setRecurringCount] = useState(5);
 
   const START_HOUR = 8;
   const END_HOUR = 18;
@@ -94,11 +74,6 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  // ★画面がブラウザに読み込まれたら、即座に「今日の正しい日本時間」に上書きする
-  useEffect(() => {
-    setDate(getJSTDateString());
-  }, []);
-
   useEffect(() => {
     setSelectedItem(current.items[0]);
     setPurpose(viewMode === "room" ? "会議" : "納品");
@@ -106,26 +81,19 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
-    // 初期状態のダミー日付（2026-01-01）のときはFirestoreへの通信をスキップ
-    if (date === "2026-01-01") return;
-
     const q = query(collection(db, current.collection), where("date", "==", date));
     
     const unsub = onSnapshot(q, (snap) => {
       const rawData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       
-      const todayStr = getJSTDateString();
-      const currentTimeStr = getJSTTimeString();
+      const now = new Date();
+      const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+      const todayStr = jstNow.toISOString().split("T")[0];
+      const currentTimeStr = jstNow.toISOString().substring(11, 16);
 
       const activeRes = rawData
-        .filter(res => {
-          if (date === todayStr) {
-            const resEndTime = res.endTime || "";
-            return resEndTime >= currentTimeStr;
-          }
-          return true;
-        })
-        .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
+        .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
+        .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
       setList(activeRes);
     }, (error) => {
@@ -138,7 +106,10 @@ export default function App() {
   const changeDate = (days) => {
     const d = new Date(date);
     d.setDate(d.getDate() + days);
-    setDate(getJSTDateString(d));
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    setDate(`${y}-${m}-${day}`);
     cancelEdit();
   };
 
@@ -149,31 +120,22 @@ export default function App() {
   };
 
   const isOverlapping = () =>
-    list.some(r => {
-      if (r.id === editingId) return false;
-      
-      const rItem = r.selectedItem || r.room;
-      if (rItem !== selectedItem) return false;
-
-      const currentStart = toMin(start);
-      const currentEnd = toMin(end);
-      const targetStart = toMin(r.startTime);
-      const targetEnd = toMin(r.endTime);
-
-      return !(currentEnd <= targetStart || currentStart >= targetEnd);
-    });
+    list.some(r => 
+      r.id !== editingId && 
+      (r.selectedItem === selectedItem || r.room === selectedItem) && 
+      !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime))
+    );
 
   const startEdit = (r) => {
     setEditingId(r.id);
-    setName(r.name || r.user || "");
-    setDepartment(r.department || r.dept || "新門司製造部");
-    setPurpose(r.purpose || "");
+    setName(r.name);
+    setDepartment(r.department || r.dept);
+    setPurpose(r.purpose);
     setExtraInfo(r.extraInfo || r.clientName || ""); 
     setGuestCount(r.guestCount || "1");
-    setSelectedItem(r.selectedItem || r.room || current.items[0]); 
-    setStart(r.startTime || "09:00");
-    setEnd(r.endTime || "10:00");
-    setIsRecurring(false);
+    setSelectedItem(r.selectedItem || r.room); 
+    setStart(r.startTime);
+    setEnd(r.endTime);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -184,7 +146,6 @@ export default function App() {
     setGuestCount("1");
     setStart("09:00");
     setEnd("10:00");
-    setIsRecurring(false);
   };
 
   const handleSave = async () => {
@@ -192,10 +153,11 @@ export default function App() {
     if (viewMode === "room" && purpose === "来客" && !extraInfo) return alert("来客社名を入力してください");
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
-    
-    if (!isRecurring && isOverlapping()) return alert(`⚠️既に予約が入っています。`);
+    if (isOverlapping()) return alert(`⚠️既に予約が入っています。`);
 
-    const baseData = { 
+    // ★タブレット側のコードに合わせて、キー名（dept, user, clientName等）を両方保存するように補強
+    const reservationData = { 
+      date, 
       name, 
       user: name,
       department, 
@@ -213,41 +175,13 @@ export default function App() {
 
     try {
       if (editingId) {
-        await updateDoc(doc(db, current.collection, editingId), { ...baseData, date });
+        await updateDoc(doc(db, current.collection, editingId), reservationData);
         alert("予約を更新しました");
-      } else if (isRecurring) {
-        const count = Number(recurringCount);
-        if (isNaN(count) || count < 1 || count > 31) {
-          return alert("繰り返しの回数は1〜31の間で入力してください");
-        }
-
-        if (!window.confirm(`${count}日分の予約をまとめて登録します。よろしいですか？\n（※別日の重複チェックはスキップされます）`)) return;
-
-        let baseDate = new Date(date);
-        
-        for (let i = 0; i < count; i++) {
-          const targetDateStr = getJSTDateString(baseDate);
-
-          await addDoc(collection(db, current.collection), { 
-            ...baseData, 
-            date: targetDateStr,
-            createdAt: new Date() 
-          });
-
-          if (recurringType === "daily") {
-            baseDate.setDate(baseDate.getDate() + 1);
-          } else {
-            baseDate.setDate(baseDate.getDate() + 7);
-          }
-        }
-        alert(`${count}件の予約をまとめて登録しました！`);
       } else {
-        await addDoc(collection(db, current.collection), { ...baseData, date, createdAt: new Date() });
-        alert("予約を確定しました");
+        await addDoc(collection(db, current.collection), { ...reservationData, createdAt: new Date() });
       }
       cancelEdit();
     } catch (e) {
-      console.error(e);
       alert("保存に失敗しました。");
     }
   };
@@ -257,48 +191,6 @@ export default function App() {
     await deleteDoc(doc(db, current.collection, id));
     if (editingId === id) cancelEdit();
   };
-
-  // スタイルの定義（※環境に応じて適宜定義またはインポートしてください）
-  const pageStyle = { padding: "20px", background: "#f8fafc", minHeight: "100vh", fontFamily: "sans-serif" };
-  const headerSection = { background: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", marginBottom: "20px" };
-  const titleStyle = { margin: "0 0 10px 0", fontSize: "24px", color: "#1e293b" };
-  const legendStyle = { display: "flex", gap: "15px", flexWrap: "wrap", marginBottom: "15px" };
-  const dateNavStyle = { display: "flex", alignItems: "center", gap: "15px" };
-  const dateHeaderStyle = { fontSize: "18px", fontWeight: "bold", color: "#334155" };
-  const navBtnStyle = { padding: "6px 12px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" };
-  
-  const mainLayout = { display: "flex", gap: "20px", flexWrap: "wrap" };
-  const leftStyle = { flex: "1 1 350px", background: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", height: "fit-content" };
-  const rightStyle = { flex: "3 1 600px", display: "flex", flexDirection: "column", gap: "20px" };
-  
-  const formTitleStyle = { margin: "0 0 15px 0", fontSize: "18px", color: "#1e293b" };
-  const fieldStyle = { width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "14px", boxSizing: "border-box" };
-  const buttonStyle = { width: "100%", padding: "12px", border: "none", borderRadius: "6px", color: "#fff", fontWeight: "bold", fontSize: "15px", cursor: "pointer", marginTop: "10px" };
-  const recurringBoxStyle = { background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", margin: "10px 0" };
-
-  const timelineCard = { background: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
-  const timeHeaderRow = { display: "flex", marginBottom: "10px" };
-  const timeLabelsContainer = { flex: 1, position: "relative", height: "20px" };
-  const timeLabelCell = { fontSize: "12px", color: "#64748b", fontWeight: "bold" };
-  const roomRow = { display: "flex", alignItems: "center", marginBottom: "10px" };
-  const roomLabel = { width: "120px", flexShrink: 0, fontSize: "14px", fontWeight: "bold", color: "#334155" };
-  const timelineTrack = { flex: 1, height: "40px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", position: "relative", overflow: "hidden" };
-  const gridLine = { position: "absolute", top: 0, bottom: 0, width: "1px" };
-  const barStyle = { position: "absolute", top: "4px", bottom: "4px", borderRadius: "4px", display: "flex", alignItems: "center", padding: "0 8px", color: "#fff", overflow: "hidden" };
-  const barTextStyle = { fontSize: "11px", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" };
-
-  const listGridArea = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "15px" };
-  const roomListCard = { background: "#fff", padding: "15px", borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
-  const roomListTitle = { margin: "0 0 10px 0", fontSize: "15px", color: "#334155", borderBottom: "2px solid #e2e8f0", paddingBottom: "4px" };
-  const scrollArea = { maxHeight: "240px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" };
-  const compactItem = { padding: "10px", borderRadius: "8px", background: "#fff", display: "flex", alignItems: "center", gap: "10px" };
-  const itemHeaderLine = { display: "flex", alignItems: "center", gap: "6px", marginBottom: "20px" };
-  const itemTime = { fontSize: "12px", fontWeight: "bold", color: "#1e293b" };
-  const itemDeptBadge = { width: "18px", height: "18px", borderRadius: "50%", color: "#fff", display: "flex", alignItems: "center", justifyInverted: "center", fontSize: "10px", fontWeight: "bold", justifyContent: "center" };
-  const itemNameStyle = { fontSize: "14px", color: "#334155", marginBottom: "2px" };
-  const itemPurpose = { fontSize: "12px", color: "#64748b" };
-  const editBtn = { background: "#f1f5f9", border: "none", borderRadius: "4px", width: "24px", height: "24px", cursor: "pointer", fontSize: "12px" };
-  const delBtn = { background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "4px", width: "24px", height: "24px", cursor: "pointer", fontSize: "14px", fontWeight: "bold" };
 
   const tabBtnStyle = (isActive) => ({
     padding: "10px 24px",
@@ -312,13 +204,6 @@ export default function App() {
     boxShadow: isActive ? "0 -2px 10px rgba(0,0,0,0.05)" : "none",
     transition: "0.2s"
   });
-
-  const FormField = ({ label, children }) => (
-    <div style={{ marginBottom: "12px" }}>
-      <label style={{ display: "block", fontSize: "13px", fontWeight: "bold", color: "#475569", marginBottom: "4px" }}>{label}</label>
-      {children}
-    </div>
-  );
 
   return (
     <div style={pageStyle}>
@@ -398,39 +283,8 @@ export default function App() {
               </FormField>
             </div>
 
-            {!editingId && (
-              <div style={recurringBoxStyle}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: "bold", cursor: "pointer", color: "#1e293b" }}>
-                  <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} style={{ width: 16, height: 16 }} />
-                  定期予約（まとめて登録）にする
-                </label>
-                
-                {isRecurring && (
-                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, paddingLeft: 8, borderLeft: "2px solid #cbd5e1" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                      <span>頻度:</span>
-                      <label><input type="radio" checked={recurringType === "daily"} onChange={() => setRecurringType("daily")} /> 毎日</label>
-                      <label><input type="radio" checked={recurringType === "weekly"} onChange={() => setRecurringType("weekly")} /> 毎週</label>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                      <span>回数:</span>
-                      <input 
-                        type="number" 
-                        min="1" 
-                        max="31" 
-                        value={recurringCount} 
-                        onChange={(e) => setRecurringCount(e.target.value)} 
-                        style={{ width: 60, padding: "4px", borderRadius: "4px", border: "1px solid #cbd5e1", textAlign: "center" }}
-                      />
-                      <span>回分 ({recurringType === "daily" ? "日間" : "週間"})</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             <button onClick={handleSave} style={{...buttonStyle, background: editingId ? "#f59e0b" : "#2563eb"}}>
-              {editingId ? "変更を保存する" : isRecurring ? "まとめて予約を確定する" : "予約を確定する"}
+              {editingId ? "変更を保存する" : "予約を確定する"}
             </button>
             {editingId && (
               <button onClick={cancelEdit} style={{...buttonStyle, background: "#6b7280", marginTop: 8}}>キャンセル</button>
@@ -461,7 +315,7 @@ export default function App() {
                       const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
                       const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
                       return (
-                        <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department || r.dept] || "#6b7280", zIndex: 2, cursor: "pointer", border: editingId === r.id ? "3px solid #000" : "none" }}>
+                        <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department || r.dept], zIndex: 2, cursor: "pointer", border: editingId === r.id ? "3px solid #000" : "none" }}>
                           <span style={barTextStyle}><strong>{r.name || r.user}</strong> ({r.guestCount || "1"}{current.unit})</span>
                         </div>
                       );
@@ -481,7 +335,7 @@ export default function App() {
                         <div style={{flex:1, minWidth:0}}>
                           <div style={itemHeaderLine}>
                             <span style={itemTime}>{r.startTime}-{r.endTime}</span>
-                            <span style={{...itemDeptBadge, background: deptColors[r.department || r.dept] || "#6b7280"}}>{(r.department || r.dept || "そ")[0]}</span>
+                            <span style={{...itemDeptBadge, background: deptColors[r.department || r.dept]}}>{(r.department || r.dept || "そ")[0]}</span>
                           </div>
                           <div style={itemNameStyle}><strong>{r.name || r.user}</strong></div>
                           <div style={itemPurpose}>{r.purpose}{(r.extraInfo || r.clientName) && `（${r.extraInfo || r.clientName}）`}</div>
@@ -502,3 +356,43 @@ export default function App() {
     </div>
   );
 }
+
+const FormField = ({ label, children }) => (
+  <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
+);
+
+const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
+const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
+const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "0 15px 15px 15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
+const titleStyle = { fontSize: 22, fontWeight: "900", margin: 0, color: "#1e293b" };
+const legendStyle = { display: "flex", gap: 15 };
+const dateNavStyle = { display: "flex", alignItems: "center", gap: 12 };
+const dateHeaderStyle = { fontSize: 19, fontWeight: "bold", color: "#1e293b", minWidth: "140px", textAlign: "center" };
+const navBtnStyle = { padding: "6px 14px", cursor: "pointer", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#fff", fontWeight: "bold", fontSize: "12px" };
+const mainLayout = { display: "flex", gap: 20, height: "calc(100vh - 160px)" };
+const leftStyle = { width: 300, background: "#fff", padding: "20px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", height: "fit-content" };
+const formTitleStyle = { fontSize: 17, marginBottom: 15, borderBottom: "2px solid #f1f5f9", paddingBottom: 8, fontWeight: "bold" };
+const fieldStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px", outline: "none", boxSizing: "border-box" };
+const buttonStyle = { width: "100%", padding: "14px", color: "#fff", border: "none", borderRadius: "10px", fontWeight: "bold", fontSize: "16px", cursor: "pointer", marginTop: "10px" };
+const rightStyle = { flex: 1, display: "flex", flexDirection: "column", gap: 15, height: "100%" };
+const timelineCard = { background: "#fff", padding: "20px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)" };
+const timeHeaderRow = { display: "flex", marginBottom: 15, height: 20, position: "relative" };
+const timeLabelsContainer = { display: "flex", flex: 1, position: "relative" };
+const timeLabelCell = { fontSize: 11, color: "#64748b", fontWeight: "bold", whiteSpace: "nowrap" };
+const roomRow = { display: "flex", alignItems: "center", marginBottom: 12 };
+const roomLabel = { width: 120, fontSize: 14, fontWeight: "bold", color: "#334155", flexShrink: 0 };
+const timelineTrack = { position: "relative", flex: 1, height: 42, background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", overflow: "hidden", boxSizing: "border-box" };
+const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1 };
+const barStyle = { position: "absolute", top: 5, bottom: 5, borderRadius: "5px", color: "#fff", display: "flex", alignItems: "center", padding: "0 10px", fontSize: "11px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)", boxSizing: "border-box", minWidth: "2px" };
+const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const listGridArea = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 15, flex: 1, overflow: "hidden", paddingBottom: "5px" };
+const roomListCard = { background: "#fff", borderRadius: "15px", padding: "12px", display: "flex", flexDirection: "column", boxShadow: "0 4px 15px rgba(0,0,0,0.03)" };
+const roomListTitle = { fontSize: 15, fontWeight: "bold", color: "#1e293b", marginBottom: 10, borderLeft: "4px solid #1e293b", paddingLeft: 8 };
+const scrollArea = { flex: 1, overflowY: "auto" };
+const compactItem = { display: "flex", alignItems: "flex-start", background: "#f8fafc", padding: "8px 10px", borderRadius: "8px", marginBottom: 6 };
+const itemHeaderLine = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 };
+const itemTime = { fontSize: "11px", color: "#1e293b", fontWeight: "bold" };
+const itemDeptBadge = { color: "#fff", fontSize: "9px", width: "14px", height: "14px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "3px", fontWeight: "bold" };
+const itemNameStyle = { fontSize: "13px", color: "#1e293b", marginBottom: 1 };
+const itemPurpose = { fontSize: "11px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const delBtn = { background: "none", color: "#ef4444", border: "none", padding: "2px 5px", cursor: "pointer", fontSize: "16px", fontWeight: "bold" };
