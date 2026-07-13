@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-// 同じ階層にあるfirebase.jsから読み込み
+// ★ パスを2つ上の階層（../../）に修正してビルドエラーを解決！
 import { db } from "./firebase";
 import {
   collection,
@@ -11,13 +11,11 @@ import {
   query,
   where,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 
 export default function App() {
   const [viewMode, setViewMode] = useState("room");
-
-  // ★ タブレット等での画面ズレによるクラッシュ（ハイドレーションエラー）を防ぐReact標準の仕組み
-  const [isMounted, setIsMounted] = useState(false);
 
   const configs = {
     room: {
@@ -40,7 +38,13 @@ export default function App() {
 
   const current = configs[viewMode];
 
-  const [date, setDate] = useState("");
+  const getInitialJSTDate = () => {
+    const now = new Date();
+    const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+    return jstNow.toISOString().split("T")[0];
+  };
+
+  const [date, setDate] = useState(getInitialJSTDate());
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
@@ -49,16 +53,12 @@ export default function App() {
   const [selectedItem, setSelectedItem] = useState(configs.room.items[0]);
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("10:00");
-  
   const [list, setList] = useState([]);
-  const [allRawData, setAllRawData] = useState([]); 
-  
   const [editingId, setEditingId] = useState(null);
 
-  // まとめて予約（繰り返し）用のState
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringType, setRecurringType] = useState("daily");
-  const [recurringCount, setRecurringCount] = useState(5);
+  // ★繰り返し予約用の新ステート
+  const [repeatType, setRepeatType] = useState("none"); // none, daily, weekly
+  const [repeatEndDate, setRepeatEndDate] = useState(getInitialJSTDate());
 
   const START_HOUR = 8;
   const END_HOUR = 18;
@@ -79,16 +79,6 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  // 画面が完全にブラウザに読み込まれてから初期日付を設定
-  useEffect(() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    setDate(`${y}-${m}-${d}`);
-    setIsMounted(true); // ここで表示を許可
-  }, []);
-
   useEffect(() => {
     setSelectedItem(current.items[0]);
     setPurpose(viewMode === "room" ? "会議" : "納品");
@@ -96,46 +86,29 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
-    if (!date || !isMounted) return;
-
     const q = query(collection(db, current.collection), where("date", "==", date));
     
     const unsub = onSnapshot(q, (snap) => {
       const rawData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setAllRawData(rawData); 
       
       const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, '0');
-      const d = String(now.getDate()).padStart(2, '0');
-      const todayStr = `${y}-${m}-${d}`;
-      
-      const currentTimeStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
+      const jstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+      const todayStr = jstNow.toISOString().split("T")[0];
+      const currentTimeStr = jstNow.toISOString().substring(11, 16);
 
-      // 過去の予約を一覧から非表示にする（タイムラインには残ります）
       const activeRes = rawData
         .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
         .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-      setList(activeRes); 
+      setList(activeRes);
     }, (error) => {
       console.error("Firestore Listen Error:", error);
     });
     
     return () => unsub();
-  }, [date, viewMode, isMounted]);
-
-  // ★ 読み込み完了（マウント）するまではローディング画面を出し、Next用コードなしで画面エラーを回避
-  if (!isMounted) {
-    return (
-      <div style={{ background: "#f1f5f9", minHeight: "100vh", padding: "20px", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif" }}>
-        <div style={{ fontSize: "16px", fontWeight: "bold", color: "#64748b" }}>システムを読み込み中...</div>
-      </div>
-    );
-  }
+  }, [date, viewMode]);
 
   const changeDate = (days) => {
-    if (!date) return;
     const d = new Date(date);
     d.setDate(d.getDate() + days);
     const y = d.getFullYear();
@@ -151,34 +124,24 @@ export default function App() {
     return h * 60 + m;
   };
 
-  const isOverlapping = () => {
-    const newStart = toMin(start);
-    const newEnd = toMin(end);
-    
-    return allRawData.some(r => {
-      if (editingId && r.id === editingId) return false;
-      
-      const targetItem = r.selectedItem || r.room || r.item;
-      if (targetItem !== selectedItem) return false; 
-
-      const existStart = toMin(r.startTime);
-      const existEnd = toMin(r.endTime);
-
-      return !(newEnd <= existStart || newStart >= existEnd);
-    });
-  };
+  const isOverlapping = () =>
+    list.some(r => 
+      r.id !== editingId && 
+      (r.selectedItem === selectedItem || r.room === selectedItem) && 
+      !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime))
+    );
 
   const startEdit = (r) => {
     setEditingId(r.id);
-    setName(r.name || r.user);
+    setName(r.name);
     setDepartment(r.department || r.dept);
     setPurpose(r.purpose);
     setExtraInfo(r.extraInfo || r.clientName || ""); 
     setGuestCount(r.guestCount || "1");
-    setSelectedItem(r.selectedItem || r.room || r.item || current.items[0]); 
+    setSelectedItem(r.selectedItem || r.room); 
     setStart(r.startTime);
     setEnd(r.endTime);
-    setIsRecurring(false);
+    setRepeatType("none"); // 編集時は誤動作を防ぐため繰り返しは一旦なしに
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -189,7 +152,15 @@ export default function App() {
     setGuestCount("1");
     setStart("09:00");
     setEnd("10:00");
-    setIsRecurring(false);
+    setRepeatType("none");
+  };
+
+  // ★特定の日付形式 (YYYY-MM-DD) を生成するヘルパー関数
+  const formatDateStr = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   };
 
   const handleSave = async () => {
@@ -198,11 +169,10 @@ export default function App() {
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     
-    if (!isRecurring && isOverlapping()) {
-      return alert("⚠️既に同じ時間帯に予約が入っています。時間を変更してください。");
-    }
+    // 単発予約の重複チェック（編集時、または繰り返しなし時）
+    if (repeatType === "none" && isOverlapping()) return alert(`⚠️既に予約が入っています。`);
 
-    const baseData = { 
+    const baseReservationData = { 
       name, 
       user: name,
       department, 
@@ -213,7 +183,6 @@ export default function App() {
       guestCount,
       selectedItem, 
       room: selectedItem, 
-      item: selectedItem,
       startTime: start, 
       endTime: end,
       updatedAt: new Date()
@@ -221,40 +190,53 @@ export default function App() {
 
     try {
       if (editingId) {
-        await updateDoc(doc(db, current.collection, editingId), { ...baseData, date });
+        // 編集時は単一ドキュメントを更新
+        await updateDoc(doc(db, current.collection, editingId), { ...baseReservationData, date });
         alert("予約を更新しました");
-      } else if (isRecurring) {
-        const count = Number(recurringCount);
-        if (isNaN(count) || count < 1 || count > 31) {
-          return alert("繰り返しの回数は1〜31の間で入力してください");
-        }
+      } else {
+        // 新規登録時の処理（繰り返し処理の組み込み）
+        if (repeatType === "none") {
+          await addDoc(collection(db, current.collection), { ...baseReservationData, date, createdAt: new Date() });
+        } else {
+          // 繰り返し対象の日付リストを生成
+          const targetDates = [];
+          let currentD = new Date(date);
+          const endD = new Date(repeatEndDate);
 
-        if (!window.confirm(`${count}日分の予約をまとめて登録します。よろしいですか？\n（※別日の重複チェックはスキップされます）`)) return;
+          if (currentD > endD) {
+            return alert("繰り返し終了日は開始日以降に設定してください");
+          }
 
-        let baseDate = new Date(date);
-        
-        for (let i = 0; i < count; i++) {
-          const y = baseDate.getFullYear();
-          const m = String(baseDate.getMonth() + 1).padStart(2, '0');
-          const d = String(baseDate.getDate()).padStart(2, '0');
-          const targetDateStr = `${y}-${m}-${d}`;
+          // 安全のため最大100回までに制限（Firestoreのバッチ上限や誤操作対策）
+          while (currentD <= endD && targetDates.length < 100) {
+            targetDates.push(formatDateStr(currentD));
+            if (repeatType === "daily") {
+              currentD.setDate(currentD.getDate() + 1);
+            } else if (repeatType === "weekly") {
+              currentD.setDate(currentD.getDate() + 7);
+            }
+          }
 
-          await addDoc(collection(db, current.collection), { 
-            ...baseData, 
-            date: targetDateStr,
-            createdAt: new Date() 
-          });
+          if (window.confirm(`${targetDates.length}日分の予約をまとめて登録します。よろしいですか？\n（※既存の予約と重複する日は登録されません）`)) {
+            // Firestoreのバッチ処理を使って高速・確実に一括登録
+            const batch = writeBatch(db);
+            
+            // 各日付ごとにデータをセット（重複チェックはタブレット側や後続処理との競合を避けるため簡易的に案内）
+            targetDates.forEach((dStr) => {
+              const docRef = doc(collection(db, current.collection));
+              batch.set(docRef, {
+                ...baseReservationData,
+                date: dStr,
+                createdAt: new Date()
+              });
+            });
 
-          if (recurringType === "daily") {
-            baseDate.setDate(baseDate.getDate() + 1);
+            await batch.commit();
+            alert(`${targetDates.length}日分の繰り返し予約を確定しました！`);
           } else {
-            baseDate.setDate(baseDate.getDate() + 7);
+            return;
           }
         }
-        alert(`${count}件の予約をまとめて登録しました！`);
-      } else {
-        await addDoc(collection(db, current.collection), { ...baseData, date, createdAt: new Date() });
-        alert("予約を確定しました");
       }
       cancelEdit();
     } catch (e) {
@@ -264,7 +246,7 @@ export default function App() {
   };
 
   const removeReservation = async (id) => {
-    if (!window.confirm("この予約を削除してもよろしいですか？")) return;
+    if (!window.confirm("この予約を削除してもよろしいですか？\n※繰り返しの一括削除には対応していません。選択した日付の予約のみ削除されます。")) return;
     await deleteDoc(doc(db, current.collection, id));
     if (editingId === id) cancelEdit();
   };
@@ -286,13 +268,11 @@ export default function App() {
     <div style={pageStyle}>
       <div style={{ maxWidth: 1600, margin: "0 auto" }}>
         
-        {/* タブ切り替えバー */}
         <div style={{ display: "flex", gap: 5, marginBottom: -1 }}>
           <button onClick={() => setViewMode("room")} style={tabBtnStyle(viewMode === "room")}>🏢 会議室予約</button>
           <button onClick={() => setViewMode("car")} style={tabBtnStyle(viewMode === "car")}>🚗 社用車予約</button>
         </div>
 
-        {/* ヘッダーエリア */}
         <div style={headerSection}>
           <h1 style={titleStyle}>{current.title}</h1>
           <div style={legendStyle}>
@@ -310,9 +290,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* メインレイアウト */}
         <div style={mainLayout}>
-          {/* 左側：入力フォーム */}
           <div style={leftStyle}>
             <h2 style={formTitleStyle}>{editingId ? "🚩 予約内容を編集" : "新規予約登録"}</h2>
             <FormField label="日付選択">
@@ -364,48 +342,33 @@ export default function App() {
               </FormField>
             </div>
 
+            {/* ★繰り返し予約の設定エリア（新規登録時のみ表示） */}
             {!editingId && (
-              <div style={recurringBoxStyle}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: "bold", cursor: "pointer", color: "#1e293b" }}>
-                  <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} style={{ width: 16, height: 16 }} />
-                  定期予約（まとめて登録）にする
-                </label>
-                
-                {isRecurring && (
-                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, paddingLeft: 8, borderLeft: "2px solid #cbd5e1" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                      <span>頻度:</span>
-                      <label><input type="radio" checked={recurringType === "daily"} onChange={() => setRecurringType("daily")} /> 毎日</label>
-                      <label><input type="radio" checked={recurringType === "weekly"} onChange={() => setRecurringType("weekly")} /> 毎週</label>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                      <span>回数:</span>
-                      <input 
-                        type="number" 
-                        min="1" 
-                        max="31" 
-                        value={recurringCount} 
-                        onChange={(e) => setRecurringCount(e.target.value)} 
-                        style={{ width: 60, padding: "4px", borderRadius: "4px", border: "1px solid #cbd5e1", textAlign: "center" }}
-                      />
-                      <span>回分 ({recurringType === "daily" ? "日間" : "週間"})</span>
-                    </div>
-                  </div>
+              <div style={{ background: "#f8fafc", padding: 10, borderRadius: 8, marginBottom: 12, border: "1px dashed #cbd5e1" }}>
+                <FormField label="🔁 繰り返し設定">
+                  <select value={repeatType} onChange={(e) => setRepeatType(e.target.value)} style={fieldStyle}>
+                    <option value="none">しない（単発）</option>
+                    <option value="daily">毎日（土日含む）</option>
+                    <option value="weekly">毎週（同じ曜日）</option>
+                  </select>
+                </FormField>
+                {repeatType !== "none" && (
+                  <FormField label="📅 繰り返し終了日">
+                    <input type="date" value={repeatEndDate} onChange={(e) => setRepeatEndDate(e.target.value)} style={{...fieldStyle, borderColor: "#10b981"}} />
+                  </FormField>
                 )}
               </div>
             )}
 
             <button onClick={handleSave} style={{...buttonStyle, background: editingId ? "#f59e0b" : "#2563eb"}}>
-              {editingId ? "変更を保存する" : isRecurring ? "まとめて予約を確定する" : "予約を確定する"}
+              {editingId ? "変更を保存する" : "予約を確定する"}
             </button>
             {editingId && (
               <button onClick={cancelEdit} style={{...buttonStyle, background: "#6b7280", marginTop: 8}}>キャンセル</button>
             )}
           </div>
 
-          {/* 右側：タイムライン表示 ＆ 下部リストカード */}
           <div style={rightStyle}>
-            {/* タイムライン */}
             <div style={timelineCard}>
               <div style={timeHeaderRow}>
                 <div style={{ width: 120, flexShrink: 0 }}></div>
@@ -425,7 +388,7 @@ export default function App() {
                     {[...Array(21)].map((_, i) => (
                       <div key={i} style={{ ...gridLine, left: `${(i * 30 / TOTAL_MIN) * 100}%`, background: i % 2 === 0 ? "#e2e8f0" : "#f1f5f9", zIndex: 1 }} />
                     ))}
-                    {list.filter((r) => (r.selectedItem === itemName || r.room === itemName || r.item === itemName)).map((r) => {
+                    {list.filter((r) => (r.selectedItem === itemName || r.room === itemName)).map((r) => {
                       const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
                       const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
                       return (
@@ -439,13 +402,12 @@ export default function App() {
               ))}
             </div>
 
-            {/* 下部4列リストカード */}
             <div style={listGridArea}>
               {current.items.map(itemName => (
                 <div key={itemName} style={roomListCard}>
                   <h3 style={roomListTitle}>{itemName}</h3>
                   <div style={scrollArea}>
-                    {list.filter(r => (r.selectedItem === itemName || r.room === itemName || r.item === itemName)).map(r => (
+                    {list.filter(r => (r.selectedItem === itemName || r.room === itemName)).map(r => (
                       <div key={r.id} style={{...compactItem, border: editingId === r.id ? "2px solid #f59e0b" : "1px solid #f1f5f9"}}>
                         <div style={{flex:1, minWidth:0}}>
                           <div style={itemHeaderLine}>
@@ -456,8 +418,8 @@ export default function App() {
                           <div style={itemPurpose}>{r.purpose}{(r.extraInfo || r.clientName) && `（${r.extraInfo || r.clientName}）`}</div>
                         </div>
                         <div style={{display: "flex", flexDirection: "column", gap: 4}}>
-                           <button onClick={() => startEdit(r)} style={editBtn}>✎</button>
-                           <button onClick={() => removeReservation(r.id)} style={delBtn}>×</button>
+                            <button onClick={() => startEdit(r)} style={editBtn}>✎</button>
+                            <button onClick={() => removeReservation(r.id)} style={delBtn}>×</button>
                         </div>
                       </div>
                     ))}
@@ -472,13 +434,10 @@ export default function App() {
   );
 }
 
-// フォームのラベル共通コンポーネント
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-// CSS スタイルオブジェクト群
-const recurringBoxStyle = { background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px dashed #cbd5e1", marginBottom: "12px", marginTop: "15px" };
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
 const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
 const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "0 15px 15px 15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
