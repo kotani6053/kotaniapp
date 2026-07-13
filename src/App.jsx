@@ -124,32 +124,36 @@ export default function App() {
     return h * 60 + m;
   };
 
+  // 【厳密修正】部屋が一致し、かつ時間が完全に被っている場合のみエラーにする
   const isOverlapping = () => {
     const newStart = toMin(start);
     const newEnd = toMin(end);
     
     return list.some(r => {
+      // 1. 自分自身の編集データなら重複から除外
       if (r.id === editingId) return false;
       
-      const isSameItem = (r.selectedItem === selectedItem || r.room === selectedItem);
-      if (!isSameItem) return false;
+      // 2. 部屋・車両名の一致チェック（あらゆるデータ構造のキーに対応）
+      const targetItem = r.selectedItem || r.room || r.item;
+      if (targetItem !== selectedItem) return false; // 部屋が違えばスルー！
 
+      // 3. 時間の重なりチェック
       const existStart = toMin(r.startTime);
       const existEnd = toMin(r.endTime);
 
-      const hasOverlap = !(newEnd <= existStart || newStart >= existEnd);
-      return hasOverlap;
+      // 新しい予約の開始が既存の終了より前、かつ新しい終了が既存の開始より後なら重なりあり
+      return newStart < existEnd && newEnd > existStart;
     });
   };
 
   const startEdit = (r) => {
     setEditingId(r.id);
-    setName(r.name);
+    setName(r.name || r.user);
     setDepartment(r.department || r.dept);
     setPurpose(r.purpose);
     setExtraInfo(r.extraInfo || r.clientName || ""); 
     setGuestCount(r.guestCount || "1");
-    setSelectedItem(r.selectedItem || r.room); 
+    setSelectedItem(r.selectedItem || r.room || r.item || current.items[0]); 
     setStart(r.startTime);
     setEnd(r.endTime);
     setIsRecurring(false);
@@ -172,7 +176,7 @@ export default function App() {
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     
-    if (!isRecurring && isOverlapping()) return alert(`⚠️既に予約が入っています。`);
+    if (!isRecurring && isOverlapping()) return alert(`⚠️すでに同じ時間帯に予約が入っています。`);
 
     const baseData = { 
       name, 
@@ -185,6 +189,7 @@ export default function App() {
       guestCount,
       selectedItem, 
       room: selectedItem, 
+      item: selectedItem,
       startTime: start, 
       endTime: end,
       updatedAt: new Date()
@@ -390,7 +395,7 @@ export default function App() {
                     {[...Array(21)].map((_, i) => (
                       <div key={i} style={{ ...gridLine, left: `${(i * 30 / TOTAL_MIN) * 100}%`, background: i % 2 === 0 ? "#e2e8f0" : "#f1f5f9", zIndex: 1 }} />
                     ))}
-                    {list.filter((r) => (r.selectedItem === itemName || r.room === itemName)).map((r) => {
+                    {list.filter((r) => (r.selectedItem === itemName || r.room === itemName || r.item === itemName)).map((r) => {
                       const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
                       const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
                       return (
@@ -409,7 +414,7 @@ export default function App() {
                 <div key={itemName} style={roomListCard}>
                   <h3 style={roomListTitle}>{itemName}</h3>
                   <div style={scrollArea}>
-                    {list.filter(r => (r.selectedItem === itemName || r.room === itemName)).map(r => (
+                    {list.filter(r => (r.selectedItem === itemName || r.room === itemName || r.item === itemName)).map(r => (
                       <div key={r.id} style={{...compactItem, border: editingId === r.id ? "2px solid #f59e0b" : "1px solid #f1f5f9"}}>
                         <div style={{flex:1, minWidth:0}}>
                           <div style={itemHeaderLine}>
