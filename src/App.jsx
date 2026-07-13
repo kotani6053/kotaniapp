@@ -124,6 +124,7 @@ export default function App() {
     return h * 60 + m;
   };
 
+  // 重複チェックロジック
   const isOverlapping = () =>
     list.some(r => 
       r.id !== editingId && 
@@ -161,7 +162,7 @@ export default function App() {
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     
-    // 単発登録、または編集時の重複チェック
+    // 【修正点】単発登録、または編集時（定期予約ではないとき）のみ重複チェックを走らせる
     if (!isRecurring && isOverlapping()) return alert(`⚠️既に予約が入っています。`);
 
     // ベースとなる共通データ
