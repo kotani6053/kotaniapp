@@ -124,13 +124,27 @@ export default function App() {
     return h * 60 + m;
   };
 
-  // 重複チェックロジック
-  const isOverlapping = () =>
-    list.some(r => 
-      r.id !== editingId && 
-      (r.selectedItem === selectedItem || r.room === selectedItem) && 
-      !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime))
-    );
+  // 【修正ポイント】画面（list）に見えていて、かつ時間がバッティングしている時だけを厳密にチェック
+  const isOverlapping = () => {
+    const newStart = toMin(start);
+    const newEnd = toMin(end);
+    
+    return list.some(r => {
+      // 編集中の自分自身のデータはスキップ
+      if (r.id === editingId) return false;
+      
+      // 部屋・車両名が一致しているか（古いデータ構造 room と 新しい selectedItem の両方に対応）
+      const isSameItem = (r.selectedItem === selectedItem || r.room === selectedItem);
+      if (!isSameItem) return false;
+
+      const existStart = toMin(r.startTime);
+      const existEnd = toMin(r.endTime);
+
+      // 時間が重なっているかの判定
+      const hasOverlap = !(newEnd <= existStart || newStart >= existEnd);
+      return hasOverlap;
+    });
+  };
 
   const startEdit = (r) => {
     setEditingId(r.id);
@@ -162,7 +176,7 @@ export default function App() {
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     
-    // 【修正点】単発登録、または編集時（定期予約ではないとき）のみ重複チェックを走らせる
+    // 単発登録、または編集時（定期予約ではないとき）のみ重複チェックを走らせる
     if (!isRecurring && isOverlapping()) return alert(`⚠️既に予約が入っています。`);
 
     // ベースとなる共通データ
@@ -273,6 +287,182 @@ export default function App() {
           <div style={dateNavStyle}>
             <button onClick={() => changeDate(-1)} style={navBtnStyle}>◀ 前日</button>
             <span style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")}</span>
+            <button onClick={() => changeDate(1)} style={navBtnStyle}>翌日 ▶</button>
+          </div>
+        </div>
+
+        <div style={mainLayout}>
+          <div style={leftStyle}>
+            <h2 style={formTitleStyle}>{editingId ? "🚩 予約内容を編集" : "新規予約登録"}</h2>
+            <FormField label="日付選択">
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={fieldStyle} />
+            </FormField>
+            <FormField label="予約者名">
+              <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="氏名" />
+            </FormField>
+            <FormField label="部署">
+              <select value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle}>
+                {departments.map((d) => <option key={d}>{d}</option>)}
+              </select>
+            </FormField>
+            <FormField label="利用目的">
+              <select value={purpose} onChange={(e) => setPurpose(e.target.value)} style={fieldStyle}>
+                {purposePresets.map((p) => <option key={p}>{p}</option>)}
+              </select>
+            </FormField>
+            <FormField label={viewMode === "room" ? "参加人数" : "乗車人数"}>
+              <select value={guestCount} onChange={(e) => setGuestCount(e.target.value)} style={fieldStyle}>
+                {[...Array(9)].map((_, i) => <option key={i+1} value={String(i+1)}>{i+1}名</option>)}
+                <option value="10+">10名以上</option>
+              </select>
+            </FormField>
+            
+            {(viewMode === "car" || (viewMode === "room" && purpose === "来客")) && (
+              <FormField label={current.extraLabel}>
+                <input 
+                  value={extraInfo} 
+                  onChange={(e) => setExtraInfo(e.target.value)} 
+                  style={{...fieldStyle, borderColor: "#2563eb", borderWidth: "2px"}} 
+                  placeholder={current.extraPlaceholder} 
+                />
+              </FormField>
+            )}
+
+            <FormField label={viewMode === "room" ? "会議室" : "車両名"}>
+              <select value={selectedItem} onChange={(e) => setSelectedItem(e.target.value)} style={fieldStyle}>
+                {current.items.map((item) => <option key={item}>{item}</option>)}
+              </select>
+            </FormField>
+            
+            <div style={{ display: "flex", gap: 10 }}>
+              <FormField label="開始時刻">
+                <input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={fieldStyle} />
+              </FormField>
+              <FormField label="終了時刻">
+                <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={fieldStyle} />
+              </FormField>
+            </div>
+
+            {/* ★★★ 定期・まとめて予約オプションのUI（新規登録時のみ表示） ★★★ */}
+            {!editingId && (
+              <div style={recurringBoxStyle}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: "bold", cursor: "pointer", color: "#1e293b" }}>
+                  <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} style={{ width: 16, height: 16 }} />
+                  定期予約（まとめて登録）にする
+                </label>
+                
+                {isRecurring && (
+                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, paddingLeft: 8, borderLeft: "2px solid #cbd5e1" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+                      <span>頻度:</span>
+                      <label><input type="radio" checked={recurringType === "daily"} onChange={() => setRecurringType("daily")} /> 毎日</label>
+                      <label><input type="radio" checked={recurringType === "weekly"} onChange={() => setRecurringType("weekly")} /> 毎週</label>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                      <span>回数:</span>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        max="31" 
+                        value={recurringCount} 
+                        onChange={(e) => setRecurringCount(e.target.value)} 
+                        style={{ width: 60, padding: "4px", borderRadius: "4px", border: "1px solid #cbd5e1", textAlign: "center" }}
+                      />
+                      <span>回分 ({recurringType === "daily" ? "日間" : "週間"})</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button onClick={handleSave} style={{...buttonStyle, background: editingId ? "#f59e0b" : "#2563eb"}}>
+              {editingId ? "変更を保存する" : isRecurring ? "まとめて予約を確定する" : "予約を確定する"}
+            </button>
+            {editingId && (
+              <button onClick={cancelEdit} style={{...buttonStyle, background: "#6b7280", marginTop: 8}}>キャンセル</button>
+            )}
+          </div>
+
+          <div style={rightStyle}>
+            <div style={timelineCard}>
+              <div style={timeHeaderRow}>
+                <div style={{ width: 120, flexShrink: 0 }}></div>
+                <div style={timeLabelsContainer}>
+                  {[...Array(11)].map((_, i) => {
+                    const h = START_HOUR + i;
+                    return (
+                      <div key={h} style={{ ...timeLabelCell, position: "absolute", left: `${((i * 60) / TOTAL_MIN) * 100}%`, transform: "translateX(-50%)" }}>{h}:00</div>
+                    );
+                  })}
+                </div>
+              </div>
+              {current.items.map((itemName) => (
+                <div key={itemName} style={roomRow}>
+                  <div style={roomLabel}>{itemName}</div>
+                  <div style={timelineTrack}>
+                    {[...Array(21)].map((_, i) => (
+                      <div key={i} style={{ ...gridLine, left: `${(i * 30 / TOTAL_MIN) * 100}%`, background: i % 2 === 0 ? "#e2e8f0" : "#f1f5f9", zIndex: 1 }} />
+                    ))}
+                    {list.filter((r) => (r.selectedItem === itemName || r.room === itemName)).map((r) => {
+                      const leftPos = ((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100;
+                      const widthVal = ((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100;
+                      return (
+                        <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${leftPos}%`, width: `${widthVal}%`, background: deptColors[r.department || r.dept], zIndex: 2, cursor: "pointer", border: editingId === r.id ? "3px solid #000" : "none" }}>
+                          <span style={barTextStyle}><strong>{r.name || r.user}</strong> ({r.guestCount || "1"}{current.unit})</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={listGridArea}>
+              {current.items.map(itemName => (
+                <div key={itemName} style={roomListCard}>
+                  <h3 style={roomListTitle}>{itemName}</h3>
+                  <div style={scrollArea}>
+                    {list.filter(r => (r.selectedItem === itemName || r.room === itemName)).map(r => (
+                      <div key={r.id} style={{...compactItem, border: editingId === r.id ? "2px solid #f59e0b" : "1px solid #f1f5f9"}}>
+                        <div style={{flex:1, minWidth:0}}>
+                          <div style={itemHeaderLine}>
+                            <span style={itemTime}>{r.startTime}-{r.endTime}</span>
+                            <span style={{...itemDeptBadge, background: deptColors[r.department || r.dept]}}>{(r.department || r.dept || "そ")[0]}</span>
+                          </div>
+                          <div style={itemNameStyle}><strong>{r.name || r.user}</strong></div>
+                          <div style={itemPurpose}>{r.purpose}{(r.extraInfo || r.clientName) && `（${r.extraInfo || r.clientName}）`}</div>
+                        </div>
+                        <div style={{display: "flex", flexDirection: "column", gap: 4}}>
+                           <button onClick={() => startEdit(r)} style={editBtn}>✎</button>
+                           <button onClick={() => removeReservation(r.id)} style={delBtn}>×</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const FormField = ({ label, children }) => (
+  <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
+);
+
+// ★ 定期予約用ボックスのスタイル
+const recurringBoxStyle = { background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px dashed #cbd5e1", marginBottom: "12px", marginTop: "15px" };
+
+const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
+const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
+const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "0 15px 15px 15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
+const titleStyle = { fontSize: 22, fontWeight: "900", margin: 0, color: "#1e293b" };
+const legendStyle = { display: "flex", gap: 15 };
+const dateNavStyle = { display: "flex", alignItems: "center", gap: 12 };
+const dateHeaderStyle = { fontSize: 19, fontWeight: "bold", color: "#1e293b", minWidth: "140px", textAlign: "center" }}>📅 {date.replace(/-/g, "/")}</span>
             <button onClick={() => changeDate(1)} style={navBtnStyle}>翌日 ▶</button>
           </div>
         </div>
