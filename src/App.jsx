@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-// ★ パスを2つ上の階層（../../）に修正してビルドエラーを解決！
 import { db } from "./firebase";
 import {
   collection,
@@ -37,7 +36,6 @@ export default function App() {
 
   const current = configs[viewMode];
 
-  // 端末のタイムゾーンに影響されない確実なJST（日本時間）を取得する関数
   const getJSTDateString = (dateObj = new Date()) => {
     const formatter = new Intl.DateTimeFormat("ja-JP", {
       timeZone: "Asia/Tokyo",
@@ -58,7 +56,6 @@ export default function App() {
     return formatter.format(dateObj);
   };
 
-  // ★安全なハイドレーション対応：初期値は固定（2026年固定）、読み込み後に自動で今日にする
   const [date, setDate] = useState("2026-01-01");
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
@@ -71,10 +68,9 @@ export default function App() {
   const [list, setList] = useState([]);
   const [editingId, setEditingId] = useState(null);
 
-  // ★ まとめて予約（繰り返し）用のState
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringType, setRecurringType] = useState("daily"); // daily(毎日) or weekly(毎週)
-  const [recurringCount, setRecurringCount] = useState(5);     // 繰り返す回数
+  const [recurringType, setRecurringType] = useState("daily"); 
+  const [recurringCount, setRecurringCount] = useState(5);     
 
   const START_HOUR = 8;
   const END_HOUR = 18;
@@ -95,7 +91,6 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  // 画面がブラウザに読み込まれた瞬間に「今日の正しい日付」に初期化する（ハイドレーションエラー防止）
   useEffect(() => {
     setDate(getJSTDateString());
   }, []);
@@ -107,7 +102,6 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
-    // 初期ダミー日付のときはFirebase通信をスキップしてバグを防ぐ
     if (date === "2026-01-01") return;
 
     const q = query(collection(db, current.collection), where("date", "==", date));
@@ -143,12 +137,22 @@ export default function App() {
     return h * 60 + m;
   };
 
+  // ★ 修正箇所：選択している「特定の部屋・車」だけを対象に重複チェックを行うよう修正
   const isOverlapping = () =>
-    list.some(r => 
-      r.id !== editingId && 
-      (r.selectedItem === selectedItem || r.room === selectedItem) && 
-      !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime))
-    );
+    list.some(r => {
+      // 編集中の自分自身のデータは比較から除外
+      if (r.id === editingId) return false;
+
+      // 保存されているデータ側のアイテム名を取得（新旧両方のプロパティに対応）
+      const targetItem = r.selectedItem || r.room;
+
+      // 「同じ部屋（または同じ車）」の場合のみ、時間の重複をチェックする
+      if (targetItem === selectedItem) {
+        return !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime));
+      }
+      
+      return false;
+    });
 
   const startEdit = (r) => {
     setEditingId(r.id);
@@ -160,7 +164,7 @@ export default function App() {
     setSelectedItem(r.selectedItem || r.room || current.items[0]); 
     setStart(r.startTime || "09:00");
     setEnd(r.endTime || "10:00");
-    setIsRecurring(false); // 編集時は繰り返しをオフに
+    setIsRecurring(false); 
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -182,7 +186,7 @@ export default function App() {
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     
-    if (!isRecurring && isOverlapping()) return alert(`⚠️既に予約が入っています。`);
+    if (!isRecurring && isOverlapping()) return alert(`⚠️この時間帯は既に予約が入っています。`);
 
     const baseData = { 
       name, 
@@ -224,9 +228,9 @@ export default function App() {
           });
 
           if (recurringType === "daily") {
-            baseDate.setDate(baseDate.getDate() + 1); // 毎日
+            baseDate.setDate(baseDate.getDate() + 1); 
           } else {
-            baseDate.setDate(baseDate.getDate() + 7); // 毎週（7日後）
+            baseDate.setDate(baseDate.getDate() + 7); 
           }
         }
         alert(`${count}件の予約をまとめて登録しました！`);
@@ -338,7 +342,6 @@ export default function App() {
               </FormField>
             </div>
 
-            {/* ★★★ 定期・まとめて予約オプションのUI（新規登録時のみ表示） ★★★ */}
             {!editingId && (
               <div style={recurringBoxStyle}>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: "bold", cursor: "pointer", color: "#1e293b" }}>
@@ -448,7 +451,6 @@ const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
-// ★ 各種スタイルの定義群（デザインを完全に維持）
 const recurringBoxStyle = { background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px dashed #cbd5e1", marginBottom: "12px", marginTop: "15px" };
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
 const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
