@@ -14,6 +14,9 @@ import {
 } from "firebase/firestore";
 
 export default function App() {
+  // ★ クラッシュ（エラー425, 418）を絶対に防ぐためのフラグ
+  const [isMounted, setIsMounted] = useState(false);
+
   const [viewMode, setViewMode] = useState("room");
 
   const configs = {
@@ -37,7 +40,6 @@ export default function App() {
 
   const current = configs[viewMode];
 
-  // ★ React #425 / #418 エラー（画面崩れ）を防ぐため、初期値は空文字で完全固定
   const [date, setDate] = useState("");
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
@@ -77,13 +79,14 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  // ★ タブレット画面が完全に読み込まれてから「今日のパソコン・タブレットの日付」を安全にセット
+  // ★ 画面がタブレット上で完全に準備OKになったら、始めて日付をセットして表示を開始する
   useEffect(() => {
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');
     setDate(`${y}-${m}-${d}`);
+    setIsMounted(true); // ← これで準備完了フラグを立てる
   }, []);
 
   useEffect(() => {
@@ -93,8 +96,7 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
-    // 日付がセットされるまではデータ取得をスキップしてエラーを防ぐ
-    if (!date) return;
+    if (!date || !isMounted) return;
 
     const q = query(collection(db, current.collection), where("date", "==", date));
     
@@ -110,6 +112,7 @@ export default function App() {
       
       const currentTimeStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
 
+      // 過去の予約を非表示にする条件
       const activeRes = rawData
         .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
         .sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -120,7 +123,12 @@ export default function App() {
     });
     
     return () => unsub();
-  }, [date, viewMode]);
+  }, [date, viewMode, isMounted]);
+
+  // ★ 画面が完全に準備できるまでは、真っ白な画面を返してクラッシュ（エラー）を絶対に回避する
+  if (!isMounted) {
+    return <div style={{ background: "#f1f5f9", minHeight: "100vh", padding: "20px" }}>読み込み中...</div>;
+  }
 
   const changeDate = (days) => {
     if (!date) return;
@@ -291,7 +299,7 @@ export default function App() {
           </div>
           <div style={dateNavStyle}>
             <button onClick={() => changeDate(-1)} style={navBtnStyle}>◀ 前日</button>
-            <span style={dateHeaderStyle}>📅 {date ? date.replace(/-/g, "/") : "読み込み中..."}</span>
+            <span style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")}</span>
             <button onClick={() => changeDate(1)} style={navBtnStyle}>翌日 ▶</button>
           </div>
         </div>
@@ -327,7 +335,7 @@ export default function App() {
                 <input 
                   value={extraInfo} 
                   onChange={(e) => setExtraInfo(e.target.value)} 
-                  style={{...fieldStyle, borderColor: "#2563eb", borderWidth: "2px"} } 
+                  style={{...fieldStyle, borderColor: "#2563eb", borderWidth: "2px"}} 
                   placeholder={current.extraPlaceholder} 
                 />
               </FormField>
