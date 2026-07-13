@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-// パスを2つ上の階層（../../）に修正してビルドエラーを解決！
+// 同じ階層にあるfirebase.jsから読み込み
 import { db } from "./firebase";
 import {
   collection,
@@ -16,7 +16,7 @@ import {
 export default function App() {
   const [viewMode, setViewMode] = useState("room");
 
-  // ★ タブレットでの画面ズレによるクラッシュ（ハイドレーションエラー）を完全に防ぐ純粋なReactの仕組み
+  // ★ タブレット等での画面ズレによるクラッシュ（ハイドレーションエラー）を防ぐReact標準の仕組み
   const [isMounted, setIsMounted] = useState(false);
 
   const configs = {
@@ -79,14 +79,14 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  // 画面が完全に読み込まれてから初期設定を行う
+  // 画面が完全にブラウザに読み込まれてから初期日付を設定
   useEffect(() => {
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');
     setDate(`${y}-${m}-${d}`);
-    setIsMounted(true); // ここで初めて表示を許可する
+    setIsMounted(true); // ここで表示を許可
   }, []);
 
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function App() {
       
       const currentTimeStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
 
-      // 過去の予約を非表示にする条件
+      // 過去の予約を一覧から非表示にする（タイムラインには残ります）
       const activeRes = rawData
         .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
         .sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -125,7 +125,7 @@ export default function App() {
     return () => unsub();
   }, [date, viewMode, isMounted]);
 
-  // ★ 読み込み完了（マウント）するまでは「仮の画面」を出してエラーを物理回避
+  // ★ 読み込み完了（マウント）するまではローディング画面を出し、Next用コードなしで画面エラーを回避
   if (!isMounted) {
     return (
       <div style={{ background: "#f1f5f9", minHeight: "100vh", padding: "20px", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif" }}>
@@ -286,11 +286,13 @@ export default function App() {
     <div style={pageStyle}>
       <div style={{ maxWidth: 1600, margin: "0 auto" }}>
         
+        {/* タブ切り替えバー */}
         <div style={{ display: "flex", gap: 5, marginBottom: -1 }}>
           <button onClick={() => setViewMode("room")} style={tabBtnStyle(viewMode === "room")}>🏢 会議室予約</button>
           <button onClick={() => setViewMode("car")} style={tabBtnStyle(viewMode === "car")}>🚗 社用車予約</button>
         </div>
 
+        {/* ヘッダーエリア */}
         <div style={headerSection}>
           <h1 style={titleStyle}>{current.title}</h1>
           <div style={legendStyle}>
@@ -308,7 +310,9 @@ export default function App() {
           </div>
         </div>
 
+        {/* メインレイアウト */}
         <div style={mainLayout}>
+          {/* 左側：入力フォーム */}
           <div style={leftStyle}>
             <h2 style={formTitleStyle}>{editingId ? "🚩 予約内容を編集" : "新規予約登録"}</h2>
             <FormField label="日付選択">
@@ -399,7 +403,9 @@ export default function App() {
             )}
           </div>
 
+          {/* 右側：タイムライン表示 ＆ 下部リストカード */}
           <div style={rightStyle}>
+            {/* タイムライン */}
             <div style={timelineCard}>
               <div style={timeHeaderRow}>
                 <div style={{ width: 120, flexShrink: 0 }}></div>
@@ -433,6 +439,7 @@ export default function App() {
               ))}
             </div>
 
+            {/* 下部4列リストカード */}
             <div style={listGridArea}>
               {current.items.map(itemName => (
                 <div key={itemName} style={roomListCard}>
@@ -465,10 +472,12 @@ export default function App() {
   );
 }
 
+// フォームのラベル共通コンポーネント
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
 );
 
+// CSS スタイルオブジェクト群
 const recurringBoxStyle = { background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px dashed #cbd5e1", marginBottom: "12px", marginTop: "15px" };
 const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
 const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
