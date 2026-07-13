@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-// ★ パスを2つ上の階層（../../）に修正してビルドエラーを解決！
+// パスを2つ上の階層（../../）に修正してビルドエラーを解決！
 import { db } from "./firebase";
 import {
   collection,
@@ -13,10 +13,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
-export default function App() {
-  // ★ クラッシュ（エラー425, 418）を絶対に防ぐためのフラグ
-  const [isMounted, setIsMounted] = useState(false);
-
+function App() {
   const [viewMode, setViewMode] = useState("room");
 
   const configs = {
@@ -40,6 +37,7 @@ export default function App() {
 
   const current = configs[viewMode];
 
+  // 初期値を空文字にしておき、useEffectで今日の日付を入れることでエラーを防ぎます
   const [date, setDate] = useState("");
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
@@ -79,14 +77,13 @@ export default function App() {
     その他: "#6b7280",
   };
 
-  // ★ 画面がタブレット上で完全に準備OKになったら、始めて日付をセットして表示を開始する
+  // 画面が立ち上がったら今日の日付を安全にセット
   useEffect(() => {
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');
     setDate(`${y}-${m}-${d}`);
-    setIsMounted(true); // ← これで準備完了フラグを立てる
   }, []);
 
   useEffect(() => {
@@ -96,7 +93,7 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
-    if (!date || !isMounted) return;
+    if (!date) return;
 
     const q = query(collection(db, current.collection), where("date", "==", date));
     
@@ -123,12 +120,7 @@ export default function App() {
     });
     
     return () => unsub();
-  }, [date, viewMode, isMounted]);
-
-  // ★ 画面が完全に準備できるまでは、真っ白な画面を返してクラッシュ（エラー）を絶対に回避する
-  if (!isMounted) {
-    return <div style={{ background: "#f1f5f9", minHeight: "100vh", padding: "20px" }}>読み込み中...</div>;
-  }
+  }, [date, viewMode]);
 
   const changeDate = (days) => {
     if (!date) return;
@@ -299,7 +291,7 @@ export default function App() {
           </div>
           <div style={dateNavStyle}>
             <button onClick={() => changeDate(-1)} style={navBtnStyle}>◀ 前日</button>
-            <span style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")}</span>
+            <span style={dateHeaderStyle}>📅 {date ? date.replace(/-/g, "/") : "読み込み中..."}</span>
             <button onClick={() => changeDate(1)} style={navBtnStyle}>翌日 ▶</button>
           </div>
         </div>
@@ -460,6 +452,10 @@ export default function App() {
     </div>
   );
 }
+
+// ★ エラーを100%回避するためのNext.js標準の仕組み
+import dynamic from "next/dynamic";
+export default dynamic(() => Promise.resolve(App), { ssr: false });
 
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
