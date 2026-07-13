@@ -13,8 +13,11 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
-function App() {
+export default function App() {
   const [viewMode, setViewMode] = useState("room");
+
+  // ★ タブレットでの画面ズレによるクラッシュ（ハイドレーションエラー）を完全に防ぐ純粋なReactの仕組み
+  const [isMounted, setIsMounted] = useState(false);
 
   const configs = {
     room: {
@@ -37,7 +40,6 @@ function App() {
 
   const current = configs[viewMode];
 
-  // 初期値を空文字にしておき、useEffectで今日の日付を入れることでエラーを防ぎます
   const [date, setDate] = useState("");
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
@@ -77,13 +79,14 @@ function App() {
     その他: "#6b7280",
   };
 
-  // 画面が立ち上がったら今日の日付を安全にセット
+  // 画面が完全に読み込まれてから初期設定を行う
   useEffect(() => {
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const d = String(now.getDate()).padStart(2, '0');
     setDate(`${y}-${m}-${d}`);
+    setIsMounted(true); // ここで初めて表示を許可する
   }, []);
 
   useEffect(() => {
@@ -93,7 +96,7 @@ function App() {
   }, [viewMode]);
 
   useEffect(() => {
-    if (!date) return;
+    if (!date || !isMounted) return;
 
     const q = query(collection(db, current.collection), where("date", "==", date));
     
@@ -120,7 +123,16 @@ function App() {
     });
     
     return () => unsub();
-  }, [date, viewMode]);
+  }, [date, viewMode, isMounted]);
+
+  // ★ 読み込み完了（マウント）するまでは「仮の画面」を出してエラーを物理回避
+  if (!isMounted) {
+    return (
+      <div style={{ background: "#f1f5f9", minHeight: "100vh", padding: "20px", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif" }}>
+        <div style={{ fontSize: "16px", fontWeight: "bold", color: "#64748b" }}>システムを読み込み中...</div>
+      </div>
+    );
+  }
 
   const changeDate = (days) => {
     if (!date) return;
@@ -291,7 +303,7 @@ function App() {
           </div>
           <div style={dateNavStyle}>
             <button onClick={() => changeDate(-1)} style={navBtnStyle}>◀ 前日</button>
-            <span style={dateHeaderStyle}>📅 {date ? date.replace(/-/g, "/") : "読み込み中..."}</span>
+            <span style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")}</span>
             <button onClick={() => changeDate(1)} style={navBtnStyle}>翌日 ▶</button>
           </div>
         </div>
@@ -452,10 +464,6 @@ function App() {
     </div>
   );
 }
-
-// ★ エラーを100%回避するためのNext.js標準の仕組み
-import dynamic from "next/dynamic";
-export default dynamic(() => Promise.resolve(App), { ssr: false });
 
 const FormField = ({ label, children }) => (
   <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
