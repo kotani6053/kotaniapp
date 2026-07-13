@@ -37,16 +37,8 @@ export default function App() {
 
   const current = configs[viewMode];
 
-  // 【安定化】端末の現在の日付をそのまま取得
-  const getInitialDate = () => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-
-  const [date, setDate] = useState(getInitialDate());
+  // ★ React #425 / #418 エラー（画面崩れ）を防ぐため、初期値は空文字で完全固定
+  const [date, setDate] = useState("");
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
@@ -56,16 +48,15 @@ export default function App() {
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("10:00");
   
-  // list（画面表示用）と allRawData（重複チェック用）を分ける
   const [list, setList] = useState([]);
   const [allRawData, setAllRawData] = useState([]); 
   
   const [editingId, setEditingId] = useState(null);
 
-  // ★ まとめて予約（繰り返し）用のState
+  // まとめて予約（繰り返し）用のState
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringType, setRecurringType] = useState("daily"); // daily(毎日) or weekly(毎週)
-  const [recurringCount, setRecurringCount] = useState(5);     // 繰り返す回数
+  const [recurringType, setRecurringType] = useState("daily");
+  const [recurringCount, setRecurringCount] = useState(5);
 
   const START_HOUR = 8;
   const END_HOUR = 18;
@@ -86,6 +77,15 @@ export default function App() {
     その他: "#6b7280",
   };
 
+  // ★ タブレット画面が完全に読み込まれてから「今日のパソコン・タブレットの日付」を安全にセット
+  useEffect(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    setDate(`${y}-${m}-${d}`);
+  }, []);
+
   useEffect(() => {
     setSelectedItem(current.items[0]);
     setPurpose(viewMode === "room" ? "会議" : "納品");
@@ -93,14 +93,15 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
+    // 日付がセットされるまではデータ取得をスキップしてエラーを防ぐ
+    if (!date) return;
+
     const q = query(collection(db, current.collection), where("date", "==", date));
     
     const unsub = onSnapshot(q, (snap) => {
-      // データベースから持ってきた生のデータをすべて保持
       const rawData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setAllRawData(rawData); // ← 重複チェックはこっちを使う
+      setAllRawData(rawData); 
       
-      // 画面のリスト表示用（過去の時間は非表示にする処理）
       const now = new Date();
       const y = now.getFullYear();
       const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -113,7 +114,7 @@ export default function App() {
         .filter(res => (date === todayStr ? res.endTime >= currentTimeStr : true))
         .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-      setList(activeRes); // ← 画面に映すのはこっち
+      setList(activeRes); 
     }, (error) => {
       console.error("Firestore Listen Error:", error);
     });
@@ -122,6 +123,7 @@ export default function App() {
   }, [date, viewMode]);
 
   const changeDate = (days) => {
+    if (!date) return;
     const d = new Date(date);
     d.setDate(d.getDate() + days);
     const y = d.getFullYear();
@@ -137,25 +139,19 @@ export default function App() {
     return h * 60 + m;
   };
 
-  // 【完全修正版】重複チェック（バグらないように `allRawData` を使用）
   const isOverlapping = () => {
     const newStart = toMin(start);
     const newEnd = toMin(end);
     
-    // 画面の見た目（list）ではなく、その日のデータベース全件（allRawData）と照らし合わせる
     return allRawData.some(r => {
-      // 1. 自身の編集データならスキップ
       if (editingId && r.id === editingId) return false;
       
-      // 2. 部屋・車両名が完全に一致しているかチェック
       const targetItem = r.selectedItem || r.room || r.item;
       if (targetItem !== selectedItem) return false; 
 
-      // 3. 時間の重なり判定（開始と終了の時間が少しでも被っていれば true）
       const existStart = toMin(r.startTime);
       const existEnd = toMin(r.endTime);
 
-      // ★ 前のコードの「うまく動いていた条件式」をそのまま採用して安全性を確保
       return !(newEnd <= existStart || newStart >= existEnd);
     });
   };
@@ -190,7 +186,6 @@ export default function App() {
     if (viewMode === "car" && !extraInfo) return alert("行き先を入力してください");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
     
-    // ★ 重複チェックで弾かれた場合
     if (!isRecurring && isOverlapping()) {
       return alert("⚠️既に同じ時間帯に予約が入っています。時間を変更してください。");
     }
@@ -296,7 +291,7 @@ export default function App() {
           </div>
           <div style={dateNavStyle}>
             <button onClick={() => changeDate(-1)} style={navBtnStyle}>◀ 前日</button>
-            <span style={dateHeaderStyle}>📅 {date.replace(/-/g, "/")}</span>
+            <span style={dateHeaderStyle}>📅 {date ? date.replace(/-/g, "/") : "読み込み中..."}</span>
             <button onClick={() => changeDate(1)} style={navBtnStyle}>翌日 ▶</button>
           </div>
         </div>
@@ -332,7 +327,7 @@ export default function App() {
                 <input 
                   value={extraInfo} 
                   onChange={(e) => setExtraInfo(e.target.value)} 
-                  style={{...fieldStyle, borderColor: "#2563eb", borderWidth: "2px"}} 
+                  style={{...fieldStyle, borderColor: "#2563eb", borderWidth: "2px"} } 
                   placeholder={current.extraPlaceholder} 
                 />
               </FormField>
