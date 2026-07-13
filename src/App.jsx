@@ -58,7 +58,9 @@ export default function App() {
     return formatter.format(dateObj);
   };
 
-  const [date, setDate] = useState(getJSTDateString());
+  // ★ハイドレーションエラー防止：初期値は固定値か空文字にし、マウント後にuseEffectで時間をセットする
+  const [isMounted, setIsMounted] = useState(false);
+  const [date, setDate] = useState("2026-01-01"); 
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
@@ -93,6 +95,12 @@ export default function App() {
     その他: "#6b7280",
   };
 
+  // ★ブラウザにマウント（読込完了）されたタイミングで、正しい今日の日付をセット
+  useEffect(() => {
+    setIsMounted(true);
+    setDate(getJSTDateString());
+  }, []);
+
   useEffect(() => {
     setSelectedItem(current.items[0]);
     setPurpose(viewMode === "room" ? "会議" : "納品");
@@ -100,6 +108,8 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
+    if (!isMounted) return; // マウント前はFirestoreの監視をスキップ
+
     const q = query(collection(db, current.collection), where("date", "==", date));
     
     const unsub = onSnapshot(q, (snap) => {
@@ -108,7 +118,6 @@ export default function App() {
       const todayStr = getJSTDateString();
       const currentTimeStr = getJSTTimeString();
 
-      // 【バグ修正】過去の予約を非表示にする条件を見直し、判定を確実に
       const activeRes = rawData
         .filter(res => {
           if (date === todayStr) {
@@ -125,7 +134,7 @@ export default function App() {
     });
     
     return () => unsub();
-  }, [date, viewMode]);
+  }, [date, viewMode, isMounted]);
 
   const changeDate = (days) => {
     const d = new Date(date);
@@ -140,7 +149,6 @@ export default function App() {
     return h * 60 + m;
   };
 
-  // 【バグ修正】部屋名の互換性チェックを厳密にし、他部屋との誤衝突を防ぐ
   const isOverlapping = () =>
     list.some(r => {
       if (r.id === editingId) return false;
@@ -263,6 +271,9 @@ export default function App() {
     boxShadow: isActive ? "0 -2px 10px rgba(0,0,0,0.05)" : "none",
     transition: "0.2s"
   });
+
+  // クライアント側でマウントされるまでは何もレンダリングしない（ハイドレーションエラーを確実に防ぐ）
+  if (!isMounted) return null;
 
   return (
     <div style={pageStyle}>
@@ -446,44 +457,3 @@ export default function App() {
     </div>
   );
 }
-
-const FormField = ({ label, children }) => (
-  <div style={{ marginBottom: 12 }}><label style={{ fontSize: 13, fontWeight: "bold", display: "block", marginBottom: 4, color: "#4a5568" }}>{label}</label>{children}</div>
-);
-
-const recurringBoxStyle = { background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px dashed #cbd5e1", marginBottom: "12px", marginTop: "15px" };
-const editBtn = { background: "#fef3c7", color: "#d97706", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "14px", padding: "2px 6px" };
-const pageStyle = { background: "#f1f5f9", minHeight: "100vh", padding: "15px 20px", fontFamily: "sans-serif" };
-const headerSection = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 15, background: "#fff", padding: "10px 25px", borderRadius: "0 15px 15px 15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" };
-const titleStyle = { fontSize: 22, fontWeight: "900", margin: 0, color: "#1e293b" };
-const legendStyle = { display: "flex", gap: 15 };
-const dateNavStyle = { display: "flex", alignItems: "center", gap: 12 };
-const dateHeaderStyle = { fontSize: 19, fontWeight: "bold", color: "#1e293b", minWidth: "140px", textAlign: "center" };
-const navBtnStyle = { padding: "6px 14px", cursor: "pointer", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#fff", fontWeight: "bold", fontSize: "12px" };
-const mainLayout = { display: "flex", gap: 20, height: "calc(100vh - 160px)" };
-const leftStyle = { width: 300, background: "#fff", padding: "20px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", height: "fit-content" };
-const formTitleStyle = { fontSize: 17, marginBottom: 15, borderBottom: "2px solid #f1f5f9", paddingBottom: 8, fontWeight: "bold" };
-const fieldStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px", outline: "none", boxSizing: "border-box" };
-const buttonStyle = { width: "100%", padding: "14px", color: "#fff", border: "none", borderRadius: "10px", fontWeight: "bold", fontSize: "16px", cursor: "pointer", marginTop: "10px" };
-const rightStyle = { flex: 1, display: "flex", flexDirection: "column", gap: 15, height: "100%" };
-const timelineCard = { background: "#fff", padding: "20px", borderRadius: "20px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)" };
-const timeHeaderRow = { display: "flex", marginBottom: 15, height: 20, position: "relative" };
-const timeLabelsContainer = { display: "flex", flex: 1, position: "relative" };
-const timeLabelCell = { fontSize: 11, color: "#64748b", fontWeight: "bold", whiteSpace: "nowrap" };
-const roomRow = { display: "flex", alignItems: "center", marginBottom: 12 };
-const roomLabel = { width: 120, fontSize: 14, fontWeight: "bold", color: "#334155", flexShrink: 0 };
-const timelineTrack = { position: "relative", flex: 1, height: 42, background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", overflow: "hidden", boxSizing: "border-box" };
-const gridLine = { position: "absolute", top: 0, bottom: 0, width: 1 };
-const barStyle = { position: "absolute", top: 5, bottom: 5, borderRadius: "5px", color: "#fff", display: "flex", alignItems: "center", padding: "0 10px", fontSize: "11px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)", boxSizing: "border-box", minWidth: "2px" };
-const barTextStyle = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const listGridArea = { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 15, flex: 1, overflow: "hidden", paddingBottom: "5px" };
-const roomListCard = { background: "#fff", borderRadius: "15px", padding: "12px", display: "flex", flexDirection: "column", boxShadow: "0 4px 15px rgba(0,0,0,0.03)" };
-const roomListTitle = { fontSize: 15, fontWeight: "bold", color: "#1e293b", marginBottom: 10, borderLeft: "4px solid #1e293b", paddingLeft: 8 };
-const scrollArea = { flex: 1, overflowY: "auto" };
-const compactItem = { display: "flex", alignItems: "flex-start", background: "#f8fafc", padding: "8px 10px", borderRadius: "8px", marginBottom: 6 };
-const itemHeaderLine = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 };
-const itemTime = { fontSize: "11px", color: "#1e293b", fontWeight: "bold" };
-const itemDeptBadge = { color: "#fff", fontSize: "9px", width: "14px", height: "14px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "3px", fontWeight: "bold" };
-const itemNameStyle = { fontSize: "13px", color: "#1e293b", marginBottom: 1 };
-const itemPurpose = { fontSize: "11px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const delBtn = { background: "none", color: "#ef4444", border: "none", padding: "2px 5px", cursor: "pointer", fontSize: "16px", fontWeight: "bold" };
