@@ -126,7 +126,7 @@ export default function App() {
   };
 
   const cancelEdit = () => {
-    setEditingId(null); setName(""); setExtraInfo(""); setStart("09:00"); setEnd("10:00");
+    setEditingId(null); setName(""); setExtraInfo(""); setStart("09:00"); setEnd("10:00"); setIsRecurring(false);
   };
 
   const changeDate = (d) => {
@@ -189,7 +189,7 @@ export default function App() {
                 {isRecurring && <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, paddingLeft: 8, borderLeft: "2px solid #cbd5e1" }}><div style={{ fontSize: 13 }}>頻度: <label><input type="radio" checked={recurringType === "daily"} onChange={() => setRecurringType("daily")} /> 毎日</label> <label><input type="radio" checked={recurringType === "weekly"} onChange={() => setRecurringType("weekly")} /> 毎週</label></div><div style={{ fontSize: 13 }}>回数: <input type="number" min="1" max="31" value={recurringCount} onChange={(e) => setRecurringCount(e.target.value)} style={{ width: 60, padding: "4px" }} /> 回分</div></div>}
               </div>
             )}
-            <button onClick={handleSave} style={{...buttonStyle, background: editingId ? "#f59e0b" : "#2563eb"}}>{editingId ? "変更を保存する" : "予約を確定する"}</button>
+            <button onClick={handleSave} style={{...buttonStyle, background: (name && purpose) ? (editingId ? "#f59e0b" : "#2563eb") : "#cbd5e1"}} disabled={!name || !purpose}>{editingId ? "変更を保存する" : "予約を確定する"}</button>
             {editingId && <button onClick={cancelEdit} style={{...buttonStyle, background: "#6b7280", marginTop: 8}}>キャンセル</button>}
           </div>
           <div style={rightStyle}>
@@ -201,7 +201,7 @@ export default function App() {
                     {[...Array(21)].map((_, i) => <div key={i} style={{ ...gridLine, left: `${(i * 30 / TOTAL_MIN) * 100}%`, background: i % 2 === 0 ? "#e2e8f0" : "#f1f5f9" }} />)}
                     {list.filter((r) => (r.selectedItem === itemName || r.room === itemName)).map((r) => (
                       <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100}%`, width: `${((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100}%`, background: deptColors[r.department || r.dept] || "#6b7280" }}>
-                        <span style={barTextStyle}><strong>{r.name || r.user}</strong> ({r.guestCount}{current.unit})</span>
+                        <span style={barTextStyle}><strong>{r.name || r.user}</strong> {r.clientName ? `(${r.clientName})` : `(${r.guestCount}${current.unit})`}</span>
                       </div>
                     ))}
                   </div>
@@ -215,7 +215,12 @@ export default function App() {
                   <div style={scrollArea}>
                     {list.filter(r => (r.selectedItem === itemName || r.room === itemName)).map(r => (
                       <div key={r.id} style={{...compactItem, border: editingId === r.id ? "2px solid #f59e0b" : "1px solid #f1f5f9"}}>
-                        <div style={{flex:1, minWidth:0}}><div style={itemHeaderLine}><span style={itemTime}>{r.startTime}-{r.endTime}</span><span style={{...itemDeptBadge, background: deptColors[r.department || r.dept]}}>{(r.department || r.dept || "そ")[0]}</span></div><div style={itemNameStyle}><strong>{r.name || r.user}</strong></div><div style={itemPurpose}>{r.purpose}</div></div>
+                        <div style={{flex:1, minWidth:0}}>
+                          <div style={itemHeaderLine}><span style={itemTime}>{r.startTime}-{r.endTime}</span><span style={{...itemDeptBadge, background: deptColors[r.department || r.dept]}}>{(r.department || r.dept || "そ")[0]}</span></div>
+                          <div style={itemNameStyle}><strong>{r.name || r.user}</strong></div>
+                          {r.clientName && <div style={{fontSize: "11px", color: "#2563eb", fontWeight: "bold", marginBottom: 2}}>{r.clientName}</div>}
+                          <div style={itemPurpose}>{r.purpose} / {r.guestCount}{current.unit}</div>
+                        </div>
                         <div style={{display: "flex", flexDirection: "column", gap: 4, marginLeft: 8}}><button onClick={() => startEdit(r)} style={editBtn}>✎</button><button onClick={() => removeReservation(r.id)} style={delBtn}>×</button></div>
                       </div>
                     ))}
