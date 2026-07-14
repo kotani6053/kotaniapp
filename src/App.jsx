@@ -10,7 +10,6 @@ import {
   query,
   where,
   updateDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 
 export default function App() {
@@ -36,19 +35,16 @@ export default function App() {
   };
 
   const current = configs[viewMode];
+  const START_HOUR = 8;
+  const START_MIN = START_HOUR * 60;
+  const TOTAL_MIN = (18 - START_HOUR) * 60;
 
-  // 共通のJST変換関数
   const getJSTDateString = (dateObj = new Date()) => {
     const jst = new Date(dateObj.getTime() + (9 * 60 * 60 * 1000));
     return jst.toISOString().split('T')[0];
   };
 
-  const getJSTTimeString = (dateObj = new Date()) => {
-    const jst = new Date(dateObj.getTime() + (9 * 60 * 60 * 1000));
-    return jst.toISOString().split('T')[1].substring(0, 5);
-  };
-
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(getJSTDateString());
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
@@ -60,20 +56,12 @@ export default function App() {
   const [list, setList] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringType, setRecurringType] = useState("daily");      
-  const [recurringCount, setRecurringCount] = useState(5);       
-
-  const START_MIN = 8 * 60;
-  const TOTAL_MIN = (18 - 8) * 60;
+  const [recurringType, setRecurringType] = useState("daily");
+  const [recurringCount, setRecurringCount] = useState(5);
 
   const departments = ["新門司製造部", "新門司セラミック", "総務部", "役員", "その他"];
   const purposePresets = viewMode === "room" ? ["会議", "来客", "面談", "面接", "その他"] : ["納品", "引取", "外出", "その他"];
-
-  const deptColors = {
-    新門司製造部: "#3b82f6", 新門司セラミック: "#10b981", 総務部: "#f59e0b", 役員: "#8b5cf6", その他: "#6b7280",
-  };
-
-  useEffect(() => { setDate(getJSTDateString()); }, []);
+  const deptColors = { 新門司製造部: "#3b82f6", 新門司セラミック: "#10b981", 総務部: "#f59e0b", 役員: "#8b5cf6", その他: "#6b7280" };
 
   useEffect(() => {
     setSelectedItem(current.items[0]);
@@ -85,12 +73,8 @@ export default function App() {
     if (!date) return;
     const q = query(collection(db, current.collection), where("date", "==", date));
     const unsub = onSnapshot(q, (snap) => {
-      const todayStr = getJSTDateString();
-      const currentTimeStr = getJSTTimeString();
-
       const filteredList = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        .filter(r => !(date === todayStr && r.endTime < currentTimeStr))
         .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
       setList(filteredList);
     });
@@ -99,36 +83,42 @@ export default function App() {
 
   const toMin = (t) => { if (!t) return 0; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 
-  const isOverlapping = () => {
-    return list.some(r => {
-      if (r.id === editingId) return false;
-      // 部屋・車両が一致し、かつ時間が重なるか判定
-      const targetItem = r.selectedItem || r.room;
-      if (targetItem === selectedItem) {
-        return !(toMin(end) <= toMin(r.startTime) || toMin(start) >= toMin(r.endTime));
-      }
-      return false;
-    });
+  const startEdit = (r) => {
+    setEditingId(r.id);
+    setName(r.name || r.user);
+    setDepartment(r.department || r.dept);
+    setPurpose(r.purpose);
+    setExtraInfo(r.extraInfo || r.clientName || "");
+    setGuestCount(r.guestCount);
+    setSelectedItem(r.selectedItem || r.room);
+    setStart(r.startTime);
+    setEnd(r.endTime);
   };
 
   const handleSave = async () => {
     if (!name || !purpose) return alert("未入力の項目があります");
     if (toMin(start) >= toMin(end)) return alert("終了時間は開始時間より後に設定してください");
-    if (!isRecurring && isOverlapping()) return alert(`⚠️この時間帯は既に予約が入っています。`);
 
     const baseData = { 
       name, user: name, department, dept: department,
       purpose, extraInfo, clientName: extraInfo,
       guestCount, selectedItem, room: selectedItem, 
-      startTime: start, endTime: end, updatedAt: serverTimestamp()
+      startTime: start, endTime: end
     };
 
     try {
-      if (editingId) {
+      if (isRecurring) {
+        for (let i = 0; i < parseInt(recurringCount); i++) {
+          const d = new Date(date);
+          recurringType === "daily" ? d.setDate(d.getDate() + i) : d.setDate(d.getDate() + i * 7);
+          await addDoc(collection(db, current.collection), { ...baseData, date: getJSTDateString(d) });
+        }
+        alert(`${recurringCount}回分の定期予約を登録しました`);
+      } else if (editingId) {
         await updateDoc(doc(db, current.collection, editingId), { ...baseData, date });
         alert("更新しました");
       } else {
-        await addDoc(collection(db, current.collection), { ...baseData, date, createdAt: serverTimestamp() });
+        await addDoc(collection(db, current.collection), { ...baseData, date });
         alert("予約を確定しました");
       }
       cancelEdit();
@@ -139,12 +129,14 @@ export default function App() {
     setEditingId(null); setName(""); setExtraInfo(""); setStart("09:00"); setEnd("10:00");
   };
 
-  // 以下、デザイン部分は省略せずそのまま維持してください（変更なし）
-  // ... (※既存のJSXデザインコードをここに入力してください) ...
-}
+  const changeDate = (d) => {
+    const cur = new Date(date);
+    cur.setDate(cur.getDate() + d);
+    setDate(getJSTDateString(cur));
+  };
 
   const removeReservation = async (id) => {
-    if (typeof window !== "undefined" && !window.confirm("この予約を削除してもよろしいですか？")) return;
+    if (!window.confirm("この予約を削除してもよろしいですか？")) return;
     await deleteDoc(doc(db, current.collection, id));
     if (editingId === id) cancelEdit();
   };
