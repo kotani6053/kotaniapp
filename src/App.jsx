@@ -10,6 +10,7 @@ import {
   query,
   where,
   updateDoc,
+  getDocs,
 } from "firebase/firestore";
 
 export default function App() {
@@ -49,7 +50,7 @@ export default function App() {
   const [department, setDepartment] = useState("新門司製造部");
   const [purpose, setPurpose] = useState("会議"); 
   const [extraInfo, setExtraInfo] = useState("");
-  const [guestCount, setGuestCount] = useState("1"); 
+  const [guestCount, setGuestCount] = useState("1名"); 
   const [selectedItem, setSelectedItem] = useState(configs.room.items[0]);
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("10:00");
@@ -83,6 +84,30 @@ export default function App() {
 
   const toMin = (t) => { if (!t) return 0; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 
+  const checkOverlap = (targetDate, startTime, endTime, targetItem, excludeId = null, existingReservations = []) => {
+    const newStart = toMin(startTime);
+    const newEnd = toMin(endTime);
+
+    const targetList = existingReservations.length > 0 
+      ? existingReservations 
+      : list.filter(r => (r.selectedItem === targetItem || r.room === targetItem));
+
+    for (const r of targetList) {
+      if (excludeId && r.id === excludeId) continue;
+      if (r.date && r.date !== targetDate) continue;
+      const rItem = r.selectedItem || r.room;
+      if (rItem !== targetItem) continue;
+
+      const existingStart = toMin(r.startTime);
+      const existingEnd = toMin(r.endTime);
+
+      if (newStart < existingEnd && newEnd > existingStart) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const startEdit = (r) => {
     setEditingId(r.id);
     setName(r.name || r.user);
@@ -108,16 +133,40 @@ export default function App() {
 
     try {
       if (isRecurring) {
+        const targetDates = [];
         for (let i = 0; i < parseInt(recurringCount); i++) {
           const d = new Date(date);
           recurringType === "daily" ? d.setDate(d.getDate() + i) : d.setDate(d.getDate() + i * 7);
-          await addDoc(collection(db, current.collection), { ...baseData, date: getJSTDateString(d) });
+          targetDates.push(getJSTDateString(d));
+        }
+
+        const q = query(collection(db, current.collection), where("date", ">=", targetDates[0]), where("date", "<=", targetDates[targetDates.length - 1]));
+        const snap = await getDocs(q);
+        const allReservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        for (const targetDate of targetDates) {
+          const hasConflict = checkOverlap(targetDate, start, end, selectedItem, null, allReservations);
+          if (hasConflict) {
+            return alert(`${targetDate.replace(/-/g, "/")} の時間帯にすでに予約が入っているため、定期予約を登録できませんでした。`);
+          }
+        }
+
+        for (let i = 0; i < targetDates.length; i++) {
+          await addDoc(collection(db, current.collection), { ...baseData, date: targetDates[i] });
         }
         alert(`${recurringCount}回分の定期予約を登録しました`);
       } else if (editingId) {
+        const hasConflict = checkOverlap(date, start, end, selectedItem, editingId);
+        if (hasConflict) {
+          return alert("指定された時間帯にはすでに別の予約が入っています。");
+        }
         await updateDoc(doc(db, current.collection, editingId), { ...baseData, date });
         alert("更新しました");
       } else {
+        const hasConflict = checkOverlap(date, start, end, selectedItem);
+        if (hasConflict) {
+          return alert("指定された時間帯にはすでに別の予約が入っています。");
+        }
         await addDoc(collection(db, current.collection), { ...baseData, date });
         alert("予約を確定しました");
       }
@@ -201,7 +250,7 @@ export default function App() {
                     {[...Array(21)].map((_, i) => <div key={i} style={{ ...gridLine, left: `${(i * 30 / TOTAL_MIN) * 100}%`, background: i % 2 === 0 ? "#e2e8f0" : "#f1f5f9" }} />)}
                     {list.filter((r) => (r.selectedItem === itemName || r.room === itemName)).map((r) => (
                       <div key={r.id} onClick={() => startEdit(r)} style={{ ...barStyle, left: `${((toMin(r.startTime) - START_MIN) / TOTAL_MIN) * 100}%`, width: `${((toMin(r.endTime) - toMin(r.startTime)) / TOTAL_MIN) * 100}%`, background: deptColors[r.department || r.dept] || "#6b7280" }}>
-                        <span style={barTextStyle}><strong>{r.name || r.user}</strong> {r.clientName ? `(${r.clientName})` : `(${r.guestCount}${current.unit})`}</span>
+                        <span style={barTextStyle}><strong>{r.name || r.user}</strong> {r.clientName ? `(${r.clientName})` : `(${r.guestCount})`}</span>
                       </div>
                     ))}
                   </div>
@@ -219,7 +268,7 @@ export default function App() {
                           <div style={itemHeaderLine}><span style={itemTime}>{r.startTime}-{r.endTime}</span><span style={{...itemDeptBadge, background: deptColors[r.department || r.dept]}}>{(r.department || r.dept || "そ")[0]}</span></div>
                           <div style={itemNameStyle}><strong>{r.name || r.user}</strong></div>
                           {r.clientName && <div style={{fontSize: "11px", color: "#2563eb", fontWeight: "bold", marginBottom: 2}}>{r.clientName}</div>}
-                          <div style={itemPurpose}>{r.purpose} / {r.guestCount}{current.unit}</div>
+                          <div style={itemPurpose}>{r.purpose} / {r.guestCount}</div>
                         </div>
                         <div style={{display: "flex", flexDirection: "column", gap: 4, marginLeft: 8}}><button onClick={() => startEdit(r)} style={editBtn}>✎</button><button onClick={() => removeReservation(r.id)} style={delBtn}>×</button></div>
                       </div>
